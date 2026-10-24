@@ -16,15 +16,17 @@ Drop a folder of music in, press **START**, get tidy MP3s out. A small portable 
 
 ## Use it
 
+**Full instructions: [docs/HOWTO.md](docs/HOWTO.md)** (install, ffmpeg setup, usage, settings, troubleshooting).
+
+The short version:
+
 1. Download the latest zip from **Releases** and unzip it anywhere (USB stick is fine).
-2. Double-click `TunesConverter.exe`.
-3. Pick the songs folder and the output folder, press **START**.
+2. Add ffmpeg once: put `ffmpeg.exe` and `ffprobe.exe` in the `bin` folder, or run the optional
+   `Get-FFmpeg.ps1` helper to fetch them.
+3. Double-click `TunesConverter.exe`, pick the songs and output folders, press **START**.
 
-Keep the whole folder together: the `.exe` is a small launcher that opens `TunesConverter.ps1`, which uses
-`bin\ffmpeg.exe` and `bin\ffprobe.exe`. Requires Windows 10/11 (uses the built-in Windows PowerShell).
-
-Windows SmartScreen may warn about the unsigned `.exe` the first time: **More info > Run anyway**. You can also
-read the source (it is a few lines in `src\Launcher.cs`) or run `powershell -File TunesConverter.ps1` directly.
+Keep the whole folder together. Requires Windows 10/11 (uses the built-in Windows PowerShell). Windows SmartScreen
+may warn about the unsigned `.exe` the first time: **More info > Run anyway**.
 
 ## Settings
 
@@ -50,12 +52,11 @@ powershell -File TunesConverter.ps1 -NoGui -In "C:\Music\Incoming" -Out "C:\Musi
 
 ```powershell
 .\Build.ps1                    # compiles src\Launcher.cs -> TunesConverter.exe
-.\Make-Release.ps1             # builds, then zips dist\TunesConverter-vX.Y.Z.zip (bundles bin\ffmpeg if present)
-.\Make-Release.ps1 -NoFfmpeg   # small zip without ffmpeg
+.\Make-Release.ps1             # builds, then zips dist\TunesConverter-vX.Y.Z.zip (no ffmpeg)
 ```
 
-The repository does not contain ffmpeg. For development, put `ffmpeg.exe` and `ffprobe.exe` in `bin\`
-(see `bin\README.txt`) or have them on your `PATH`.
+The repository and release zip do not contain ffmpeg. For development, put `ffmpeg.exe` and `ffprobe.exe` in
+`bin\` (see `bin\README.txt`) or have them on your `PATH`.
 
 ## Status
 

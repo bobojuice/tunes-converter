@@ -181,7 +181,7 @@ function Invoke-Batch([string]$in, [string]$out) {
     Set-Content -LiteralPath $LogFile -Value '' -Encoding UTF8
     $conf = Load-Settings
     $script:Bitrate = $conf.Bitrate; $script:SampleRate = $conf.SampleRate
-    if (-not $Ffmpeg -or -not $Ffprobe) { Log 'ERROR: ffmpeg not found. It should be in the bin folder next to this app.'; return }
+    if (-not $Ffmpeg -or -not $Ffprobe) { Log 'ERROR: ffmpeg not found. Put ffmpeg.exe and ffprobe.exe in the bin folder (see docs\HOWTO.md) or run Get-FFmpeg.ps1.'; return }
     if (-not (Test-Path -LiteralPath $in -PathType Container)) { Log "ERROR: songs folder not found: $in"; return }
     if (-not $out) { Log 'ERROR: pick an output folder.'; return }
     if ((Resolve-Path -LiteralPath $in).Path.TrimEnd('\') -ieq $out.TrimEnd('\')) { Log 'ERROR: output folder must be different from the songs folder.'; return }
