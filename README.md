@@ -57,6 +57,14 @@ powershell -File TunesConverter.ps1 -NoGui -In "C:\Music\Incoming" -Out "C:\Musi
 The repository does not contain ffmpeg. For development, put `ffmpeg.exe` and `ffprobe.exe` in `bin\`
 (see `bin\README.txt`) or have them on your `PATH`.
 
+## Status
+
+I built this for myself and I'm sharing it in case it's useful to you. It works for me, but I'm not actively
+maintaining it, so I can't promise fixes, features, or replies. It's provided as-is, with no warranty
+(see the MIT license).
+
+Issues are turned off. You're very welcome to fork it and make it your own. Hope it helps!
+
 ## Notes
 
 - The script must stay ASCII-only (Windows PowerShell 5.1 reads it as ANSI).
