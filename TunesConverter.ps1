@@ -106,7 +106,7 @@ function Run-Proc([string]$exe, [string]$argLine) {
 # ---- Quality check: where does the audio's high end stop? ----
 # A lossy file (or a lossless file made from one) has a hard lowpass whose frequency betrays the real bitrate.
 # Calibrated against LAME encodes of a lossless track (cutoff by bitrate): 128k ~16.8 kHz, 160k ~17.6, 192k ~18.9,
-# 224k/256k ~19.6, 320k ~20.3 kHz, lossless ~22 kHz.
+# 224k/256k ~19.6, 320k ~20.3 kHz, lossless ~22 kHz. It is an estimate, not proof.
 function Ensure-SpecCheck {
     if ('SpecCheck' -as [type]) { return }
     Add-Type -TypeDefinition @'
@@ -117,11 +117,13 @@ public static class SpecCheck {
     const int N = 4096;
 
     // Highest frequency (Hz) that still carries real signal; -1 when there is not enough audio.
-    public static double Cutoff(byte[] raw, int byteCount, int sampleRate, double thresholdDb) {
-        int total = byteCount / 4;
+    // raw = interleaved float32 samples. Each channel is analysed on its own and the loudest result per frequency
+    // is kept, so opposite-phase stereo cannot hide anything. The threshold is relative to the track's own
+    // level, so a quiet copy of a track gives the same answer as the loud one.
+    public static double Cutoff(byte[] raw, int byteCount, int sampleRate, int channels) {
+        if (channels < 1) channels = 1;
+        int total = byteCount / (4 * channels);
         if (total < N * 12) return -1;
-        float[] x = new float[total];
-        Buffer.BlockCopy(raw, 0, x, 0, total * 4);
 
         double[] win = new double[N];
         double winSum = 0;
@@ -135,15 +137,23 @@ public static class SpecCheck {
         List<float[]> frames = new List<float[]>();
         double[] re = new double[N], im = new double[N];
         for (int pos = lo; pos <= hi && frames.Count < maxFrames; pos += step) {
-            double e = 0;
-            for (int i = 0; i < N; i++) { double s = x[pos + i]; e += s * s; }
-            if (Math.Sqrt(e / N) < 0.005) continue;
-            for (int i = 0; i < N; i++) { re[i] = x[pos + i] * win[i]; im[i] = 0; }
-            Fft(re, im);
+            double loud = 0;
+            for (int c = 0; c < channels; c++) {
+                double e = 0;
+                for (int i = 0; i < N; i++) { double s = Sample(raw, pos + i, c, channels); e += s * s; }
+                loud = Math.Max(loud, Math.Sqrt(e / N));
+            }
+            if (loud < 0.005) continue;
             float[] lv = new float[bins];
-            for (int b = 0; b < bins; b++) {
-                double mag = Math.Sqrt(re[b] * re[b] + im[b] * im[b]) / norm;
-                lv[b] = (float)(20 * Math.Log10(mag + 1e-12));
+            for (int b = 0; b < bins; b++) lv[b] = -300f;
+            for (int c = 0; c < channels; c++) {
+                for (int i = 0; i < N; i++) { re[i] = Sample(raw, pos + i, c, channels) * win[i]; im[i] = 0; }
+                Fft(re, im);
+                for (int b = 0; b < bins; b++) {
+                    double mag = Math.Sqrt(re[b] * re[b] + im[b] * im[b]) / norm;
+                    float db = (float)(20 * Math.Log10(mag + 1e-12));
+                    if (db > lv[b]) lv[b] = db;
+                }
             }
             frames.Add(lv);
         }
@@ -160,15 +170,27 @@ public static class SpecCheck {
         float[] sm = new float[bins];
         int w = 12;
         for (int b = 0; b < bins; b++) {
-            int a = Math.Max(0, b - w), c = Math.Min(bins - 1, b + w);
+            int a = Math.Max(0, b - w), c2 = Math.Min(bins - 1, b + w);
             double sum = 0;
-            for (int k = a; k <= c; k++) sum += p[k];
-            sm[b] = (float)(sum / (c - a + 1));
+            for (int k = a; k <= c2; k++) sum += p[k];
+            sm[b] = (float)(sum / (c2 - a + 1));
         }
+
+        // Reference level = the track's own mid-band level (1-8 kHz); signal must stay within 65 dB of it.
+        int r0 = (int)(1000.0 * N / sampleRate), r1 = Math.Min(bins - 1, (int)(8000.0 * N / sampleRate));
+        double refSum = 0;
+        for (int b = r0; b <= r1; b++) refSum += sm[b];
+        double reference = refSum / (r1 - r0 + 1);
+        double threshold = Math.Min(-90.0, Math.Max(-118.0, reference - 65.0));
+
         for (int b = bins - 1; b > 0; b--) {
-            if (sm[b] > thresholdDb) return b * (double)sampleRate / N;
+            if (sm[b] > threshold) return b * (double)sampleRate / N;
         }
         return 0;
+    }
+
+    static double Sample(byte[] raw, int index, int channel, int channels) {
+        return BitConverter.ToSingle(raw, (index * channels + channel) * 4);
     }
 
     static void Fft(double[] re, double[] im) {
@@ -198,21 +220,26 @@ public static class SpecCheck {
 '@
 }
 
-function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration) {
+# Returns the cutoff in Hz, -1 (too short or quiet), -2 (could not decode) or $null (cancelled).
+function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration, [int]$channels) {
     Ensure-SpecCheck
     $inv = [Globalization.CultureInfo]::InvariantCulture
-    $seek = ''
-    if ($duration -gt 240) { $seek = [string]::Format($inv, '-ss {0:0.0} -t 180 ', [Math]::Max(0, $duration / 2 - 90)) }
+    # Always bound the decode: a 3-minute slice from the middle, or the first 4 minutes when the length is unknown.
+    $limit = ''
+    if ($duration -gt 240) { $limit = [string]::Format($inv, '-ss {0:0.0} -t 180 ', [Math]::Max(0, $duration / 2 - 90)) }
+    elseif (-not ($duration -gt 0)) { $limit = '-t 240 ' }
+    $ch = [Math]::Max(1, [Math]::Min($channels, 2))
     $rate = [Math]::Min($sampleRate, 48000)
     $resample = if ($sampleRate -gt 48000) { '-ar 48000 ' } else { '' }
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $Ffmpeg
-    $psi.Arguments = '-v error ' + $seek + '-i ' + (Q $path) + ' -vn -ac 1 ' + $resample + '-f f32le -'
+    $psi.Arguments = '-v error ' + $limit + '-i ' + (Q $path) + ' -map 0:a:0 -vn -ac ' + $ch + ' ' + $resample + '-f f32le -'
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
     $p = [Diagnostics.Process]::Start($psi)
     $script:Proc = $p
     $ms = New-Object IO.MemoryStream
+    $ok = $false
     try {
         $copy = $p.StandardOutput.BaseStream.CopyToAsync($ms)
         $err = $p.StandardError.ReadToEndAsync()
@@ -222,18 +249,22 @@ function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration) {
             Start-Sleep -Milliseconds 20
         }
         $p.WaitForExit()
-    } catch { return $null }
+        $copy.Wait()
+        $ok = ($p.ExitCode -eq 0)
+    } catch { $ok = $false }
     finally { $script:Proc = $null; $p.Dispose() }
     if ($script:Cancel) { return $null }
-    [SpecCheck]::Cutoff($ms.GetBuffer(), [int]$ms.Length, $rate, -100)
+    if (-not $ok -or $ms.Length -eq 0) { return -2 }
+    [SpecCheck]::Cutoff($ms.GetBuffer(), [int]$ms.Length, $rate, $ch)
 }
 
 function Test-Quality($file, $audio, $j) {
     $none = @{ Low = $false; Msg = '' }
     $sr = [int]$audio.sample_rate
     if ($sr -lt 44100) { return $none }
-    $cut = Measure-Cutoff $file.FullName $sr ([double]$j.format.duration)
+    $cut = Measure-Cutoff $file.FullName $sr ([double]$j.format.duration) ([int]$audio.channels)
     if ($null -eq $cut) { return $none }
+    if ($cut -eq -2) { return @{ Low = $false; Msg = 'quality not checked (could not decode the audio)' } }
     if ($cut -lt 0) { return @{ Low = $false; Msg = 'quality not checked (too short or quiet)' } }
     $est = if ($cut -ge 19950) { 320 } elseif ($cut -ge 19250) { 256 } elseif ($cut -ge 18250) { 192 } elseif ($cut -ge 17200) { 160 } else { 128 }
     $label = switch ($est) { 320 { '320k or better' } 256 { '~224-256k' } 192 { '~192k' } 160 { '~160k' } default { '~128k or lower' } }
@@ -278,13 +309,6 @@ function Convert-One($file, [string]$outDir) {
     $audio = $j.streams | Where-Object codec_type -eq 'audio' | Select-Object -First 1
     if (-not $audio) { return @{ Status = 'FAIL'; Name = $file.Name; Note = 'no audio stream' } }
 
-    $q = $null
-    if ($script:QMode -ne 'off') {
-        if ($script:Gui) { $lblStatus.Text = "Checking quality - $($file.Name)" }
-        $q = Test-Quality $file $audio $j
-        if ($script:Cancel) { return @{ Status = 'STOP' } }
-        if ($q.Low -and $script:QMode -eq 'skip') { return @{ Status = $q.Kind; Name = $file.Name; Note = $q.Msg } }
-    }
 
     $tagsets = @($j.format.tags, $audio.tags)
     function Pick([string]$n) { foreach ($t in $tagsets) { $v = Get-Tag $t $n; if ($v) { return $v } } }
@@ -308,6 +332,13 @@ function Convert-One($file, [string]$outDir) {
     $name = $cand
     $dest = Join-Path $outDir ($name + '.mp3')
     if (Test-Path -LiteralPath $dest) { return @{ Status = 'SKIP'; Name = "$name.mp3"; Note = 'already exists' } }
+    $q = $null
+    if ($script:QMode -ne 'off') {
+        if ($script:Gui) { $lblStatus.Text = "Checking quality - $($file.Name)" }
+        $q = Test-Quality $file $audio $j
+        if ($script:Cancel) { return @{ Status = 'STOP' } }
+        if ($q.Low -and $script:QMode -eq 'skip') { return @{ Status = $q.Kind; Name = $file.Name; Note = $q.Msg } }
+    }
     $part = $dest + '.' + [Guid]::NewGuid().ToString('N').Substring(0, 8) + '.part'
 
     $isMp3 = $audio.codec_name -eq 'mp3'

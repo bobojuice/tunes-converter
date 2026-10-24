@@ -117,7 +117,7 @@ MP3 that was converted to FLAC or re-encoded at 320. The tag says one thing; the
 Tunes Converter can check this before converting. Real full-quality audio keeps going up to about 22 kHz. Lossy
 encoders chop off everything above a fixed frequency, and that cutoff gives away the real bitrate. The app measures
 where each file's audio actually stops (from a spectrum analysis of the file itself, not from its tags) and
-estimates the true quality:
+estimates the likely real quality:
 
 | Audio stops at | Looks like |
 | -------------- | ---------- |
@@ -149,7 +149,9 @@ Good to know:
 - It is a careful estimate, not a guarantee. The cutoff table was calibrated on LAME encodes of real music. Other
   encoders (for example AAC) cut off at slightly different frequencies, 224 and 256 kbps cannot be told apart, and a
   genuinely dull or band-limited recording (some old or heavily filtered masters) can look low quality.
-- Long tracks are checked on a 3-minute slice from the middle. Files below 44.1 kHz sample rate are not checked.
+- Long tracks are checked on a 3-minute slice from the middle (the first 4 minutes if the length is unknown). Stereo
+  files are analysed channel by channel, and the result does not depend on how loud the track is. Files below
+  44.1 kHz sample rate are not checked, and a file that cannot be decoded is reported as "not checked".
 - A lossless file that stops around 20 kHz is passed (it meets a 320 minimum) but gets a note that it was probably
   made from a lossy source.
 - Checking adds a few seconds per track.
