@@ -150,8 +150,9 @@ Good to know:
   encoders (for example AAC) cut off at slightly different frequencies, 224 and 256 kbps cannot be told apart, and a
   genuinely dull or band-limited recording (some old or heavily filtered masters) can look low quality.
 - Long tracks are checked on a 3-minute slice from the middle (the first 4 minutes if the length is unknown). Stereo
-  files are analysed channel by channel, and the result does not depend on how loud the track is. Files below
-  44.1 kHz sample rate are not checked, and a file that cannot be decoded is reported as "not checked".
+  files are analysed channel by channel. The verdict does not depend on loudness within normal levels. On a very quiet
+  track a low result cannot be trusted, so it is reported as "not checked" instead of being flagged. Files below 44.1 kHz sample rate are not checked,
+  and a file that cannot be decoded is also reported as "not checked".
 - A lossless file that stops around 20 kHz is passed (it meets a 320 minimum) but gets a note that it was probably
   made from a lossy source.
 - Checking adds a few seconds per track.

@@ -115,11 +115,13 @@ using System.Collections.Generic;
 
 public static class SpecCheck {
     const int N = 4096;
+    public static bool LastClamped;
 
     // Highest frequency (Hz) that still carries real signal; -1 when there is not enough audio.
     // raw = interleaved float32 samples. Each channel is analysed on its own and the loudest result per frequency
     // is kept, so opposite-phase stereo cannot hide anything. The threshold is relative to the track's own
-    // level, so a quiet copy of a track gives the same answer as the loud one.
+    // level, so a quiet copy of a track gives the same answer as the loud one. LastClamped tells the caller when
+    // the track was too quiet for the relative threshold to be used in full.
     public static double Cutoff(byte[] raw, int byteCount, int sampleRate, int channels) {
         if (channels < 1) channels = 1;
         int total = byteCount / (4 * channels);
@@ -176,12 +178,16 @@ public static class SpecCheck {
             sm[b] = (float)(sum / (c2 - a + 1));
         }
 
-        // Reference level = the track's own mid-band level (1-8 kHz); signal must stay within 65 dB of it.
+        // Reference level = the track's own mid-band level (1-8 kHz); signal must stay within 60 dB of it.
         int r0 = (int)(1000.0 * N / sampleRate), r1 = Math.Min(bins - 1, (int)(8000.0 * N / sampleRate));
         double refSum = 0;
         for (int b = r0; b <= r1; b++) refSum += sm[b];
         double reference = refSum / (r1 - r0 + 1);
-        double threshold = Math.Min(-90.0, Math.Max(-118.0, reference - 65.0));
+        // Never go below -118 dB: that is close to the decoder's noise floor. On a very quiet track this makes the
+        // test stricter than intended, so a LOW result there is not trustworthy (a high result still is).
+        double wanted = reference - 60.0;
+        LastClamped = wanted < -118.0;
+        double threshold = Math.Min(-90.0, Math.Max(-118.0, wanted));
 
         for (int b = bins - 1; b > 0; b--) {
             if (sm[b] > threshold) return b * (double)sampleRate / N;
@@ -220,14 +226,15 @@ public static class SpecCheck {
 '@
 }
 
-# Returns the cutoff in Hz, -1 (too short or quiet), -2 (could not decode) or $null (cancelled).
+# Returns the cutoff in Hz, -1 (too short or silent), -2 (could not decode) or $null (cancelled).
 function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration, [int]$channels) {
     Ensure-SpecCheck
     $inv = [Globalization.CultureInfo]::InvariantCulture
-    # Always bound the decode: a 3-minute slice from the middle, or the first 4 minutes when the length is unknown.
+    # Always bound the decode (even if the reported length is wrong): a 3-minute slice from the middle of long tracks,
+    # otherwise at most the first 4 minutes.
     $limit = ''
     if ($duration -gt 240) { $limit = [string]::Format($inv, '-ss {0:0.0} -t 180 ', [Math]::Max(0, $duration / 2 - 90)) }
-    elseif (-not ($duration -gt 0)) { $limit = '-t 240 ' }
+    else { $limit = '-t 240 ' }
     $ch = [Math]::Max(1, [Math]::Min($channels, 2))
     $rate = [Math]::Min($sampleRate, 48000)
     $resample = if ($sampleRate -gt 48000) { '-ar 48000 ' } else { '' }
@@ -243,16 +250,19 @@ function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration, [int
     try {
         $copy = $p.StandardOutput.BaseStream.CopyToAsync($ms)
         $err = $p.StandardError.ReadToEndAsync()
-        while (-not $copy.IsCompleted) {
+        while (-not $copy.IsCompleted -or -not $p.HasExited) {
             [Windows.Forms.Application]::DoEvents()
             if ($script:Cancel) { try { $p.Kill() } catch {} }
             Start-Sleep -Milliseconds 20
         }
-        $p.WaitForExit()
         $copy.Wait()
         $ok = ($p.ExitCode -eq 0)
     } catch { $ok = $false }
-    finally { $script:Proc = $null; $p.Dispose() }
+    finally {
+        $script:Proc = $null
+        if (-not $p.HasExited) { try { $p.Kill() } catch {} }
+        $p.Dispose()
+    }
     if ($script:Cancel) { return $null }
     if (-not $ok -or $ms.Length -eq 0) { return -2 }
     [SpecCheck]::Cutoff($ms.GetBuffer(), [int]$ms.Length, $rate, $ch)
@@ -272,6 +282,7 @@ function Test-Quality($file, $audio, $j) {
     $lossless = $audio.codec_name -match '^(flac|alac|pcm_|wavpack|ape|tta)'
     $claim = if ($lossless) { 'claims lossless' } elseif ($audio.bit_rate) { 'says ' + [int]([double]$audio.bit_rate / 1000) + 'k' } else { '' }
     if ($est -lt $script:QMin) {
+        if ([SpecCheck]::LastClamped) { return @{ Low = $false; Msg = 'quality not checked (track too quiet for a reliable verdict)' } }
         # Fake = the file claims more than its spectrum supports; otherwise it is honest but below your minimum.
         $claimedK = if ($audio.bit_rate) { [double]$audio.bit_rate / 1000 } else { 0 }
         if ($lossless -or $claimedK -gt $est * 1.15) {
@@ -408,15 +419,17 @@ function Load-Settings {
     $desk = [Environment]::GetFolderPath('Desktop')
     $d = @{ In = (Join-Path $desk 'NewTunes'); Out = (Join-Path $desk 'converted'); Bitrate = 320; SampleRate = 44100; QualityCheck = 'warn'; MinKbps = 320 }
     if (Test-Path -LiteralPath $SettingsFile) {
-        try {
-            $s = Get-Content -LiteralPath $SettingsFile -Raw | ConvertFrom-Json
-            if ($s.In)  { $d.In  = $s.In }
-            if ($s.Out) { $d.Out = $s.Out }
-            if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.Bitrate) { $d.Bitrate = [int]$s.Bitrate }
-            if (@(44100, 48000) -contains [int]$s.SampleRate) { $d.SampleRate = [int]$s.SampleRate }
-            if (@('off', 'warn', 'skip') -contains [string]$s.QualityCheck) { $d.QualityCheck = [string]$s.QualityCheck }
-            if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.MinKbps) { $d.MinKbps = [int]$s.MinKbps }
-        } catch {}
+        $s = $null
+        try { $s = Get-Content -LiteralPath $SettingsFile -Raw | ConvertFrom-Json } catch {}
+        if ($s) {
+            # Each key is checked on its own, so one bad value never discards the valid ones.
+            try { if ($s.In)  { $d.In  = [string]$s.In } } catch {}
+            try { if ($s.Out) { $d.Out = [string]$s.Out } } catch {}
+            try { if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.Bitrate) { $d.Bitrate = [int]$s.Bitrate } } catch {}
+            try { if (@(44100, 48000) -contains [int]$s.SampleRate) { $d.SampleRate = [int]$s.SampleRate } } catch {}
+            try { if (@('off', 'warn', 'skip') -contains [string]$s.QualityCheck) { $d.QualityCheck = [string]$s.QualityCheck } } catch {}
+            try { if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.MinKbps) { $d.MinKbps = [int]$s.MinKbps } } catch {}
+        }
     }
     $d
 }
