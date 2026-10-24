@@ -2,5 +2,7 @@
   "In": "C:\\Music\\Incoming",
   "Out": "C:\\Music\\MP3",
   "Bitrate": 320,
-  "SampleRate": 44100
+  "SampleRate": 44100,
+  "QualityCheck": "warn",
+  "MinKbps": 320
 }

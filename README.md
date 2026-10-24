@@ -8,6 +8,9 @@ Drop a folder of music in, press **START**, get tidy MP3s out. A small portable 
 - **Correct names:** files become `Artist - Title.mp3`. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title.mp3` instead of
   keeping only the last artist.
+- **Fake-quality check:** measures where each file's audio really stops (not what its tag claims) to estimate the
+  true bitrate, and can flag or skip files below a minimum you choose (for example a 128k MP3 passed off as 320 or
+  lossless). Off, warn or skip; see [docs/HOWTO.md](docs/HOWTO.md#quality-check-spot-fake-files).
 - **Tags and cover art kept**, written as ID3v2.3 (works with DJ software and car stereos).
 - **Originals are never touched.** Output goes to a separate folder; existing files are skipped, so reruns are safe.
 - Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3. MP3 sources are copied as they are (no re-encoding,
@@ -39,6 +42,8 @@ Folders are remembered in `settings.json` next to the app. Create or edit it by 
 | `Out`        | `Desktop\converted`  | any folder (not the same as `In`) |
 | `Bitrate`    | `320`         | `128`, `160`, `192`, `224`, `256`, `320` |
 | `SampleRate` | `44100`       | `44100`, `48000`                        |
+| `QualityCheck` | `warn`      | `off`, `warn`, `skip`                   |
+| `MinKbps`    | `320`         | `128`, `160`, `192`, `224`, `256`, `320` |
 
 Invalid values fall back to the defaults. Close and reopen the app after editing.
 

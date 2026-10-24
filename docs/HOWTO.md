@@ -11,6 +11,7 @@ portable Windows app: there is nothing to install, and deleting its folder remov
 [Get ffmpeg](#get-ffmpeg-one-time) |
 [Use it](#use-it) |
 [What it does to your files](#what-it-does-to-your-files) |
+[Quality check](#quality-check-spot-fake-files) |
 [Settings](#settings) |
 [Command line](#command-line) |
 [Troubleshooting](#troubleshooting) |
@@ -86,7 +87,8 @@ downloading, add `-DryRun`.
 6. **Open output folder** jumps to the results.
 
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
-reason is shown; the rest of the batch continues).
+reason is shown; the rest of the batch continues). Amber **WARN**/**LOW** and red **FAKE** come from the
+[quality check](#quality-check-spot-fake-files).
 
 The app remembers your two folders for next time.
 
@@ -107,6 +109,51 @@ The app remembers your two folders for next time.
 - **Same name twice in one batch** (two different songs with identical artist and title) are numbered in order:
   `Name.mp3`, `Name (2).mp3`, and so on.
 
+## Quality check (spot fake files)
+
+A file can claim to be 320 kbps (or lossless) and still be a low-quality file in disguise, for example a 128 kbps
+MP3 that was converted to FLAC or re-encoded at 320. The tag says one thing; the audio says another.
+
+Tunes Converter can check this before converting. Real full-quality audio keeps going up to about 22 kHz. Lossy
+encoders chop off everything above a fixed frequency, and that cutoff gives away the real bitrate. The app measures
+where each file's audio actually stops (from a spectrum analysis of the file itself, not from its tags) and
+estimates the true quality:
+
+| Audio stops at | Looks like |
+| -------------- | ---------- |
+| about 20 kHz or higher | 320 kbps or better (including lossless) |
+| about 19.3 - 20 kHz | roughly 224 - 256 kbps |
+| about 18.3 - 19.3 kHz | roughly 192 kbps |
+| about 17.2 - 18.3 kHz | roughly 160 kbps |
+| below about 17.2 kHz | 128 kbps or lower |
+
+Two settings control it. Click the two chips under the folder box to change them (they are saved for next time):
+
+- **Quality check:** `off`, `warn` or `skip fakes`.
+  - `off`: no check (fastest).
+  - `warn` (default): every file is converted, but low-quality files are flagged in the log.
+  - `skip fakes`: files below your minimum are **not converted**. Nothing is deleted; your originals stay where they are.
+- **Minimum:** the lowest real quality you accept: 320, 256, 224, 192, 160 or 128 kbps. Use 320 for strict, or 256 for
+  hard-to-find tracks you are willing to accept at a slightly lower level.
+
+What you will see in the log:
+
+- `OK ... source ok: 320k or better (cutoff 22.1 kHz)`: passed.
+- `FAKE ... fakin' the funk: claims lossless but looks like ~128k or lower (cutoff 16.7 kHz)`: the file claims more
+  than its audio supports.
+- `LOW ... below your 320k minimum: looks like ~192k (cutoff 18.8 kHz)`: honest about being lossy, but below your minimum.
+- `WARN ...`: same findings in `warn` mode, where the file was still converted.
+
+Good to know:
+
+- It is a careful estimate, not a guarantee. The cutoff table was calibrated on LAME encodes of real music. Other
+  encoders (for example AAC) cut off at slightly different frequencies, 224 and 256 kbps cannot be told apart, and a
+  genuinely dull or band-limited recording (some old or heavily filtered masters) can look low quality.
+- Long tracks are checked on a 3-minute slice from the middle. Files below 44.1 kHz sample rate are not checked.
+- A lossless file that stops around 20 kHz is passed (it meets a 320 minimum) but gets a note that it was probably
+  made from a lossy source.
+- Checking adds a few seconds per track.
+
 ## Settings
 
 Your folders are saved in `settings.json`, created next to the app the first time you press START. You can also
@@ -117,7 +164,9 @@ create or edit it by hand to change more (copy `settings.example.json` to `setti
   "In": "C:\\Music\\Incoming",
   "Out": "C:\\Music\\MP3",
   "Bitrate": 320,
-  "SampleRate": 44100
+  "SampleRate": 44100,
+  "QualityCheck": "warn",
+  "MinKbps": 320
 }
 ```
 
@@ -127,6 +176,8 @@ create or edit it by hand to change more (copy `settings.example.json` to `setti
 | `Out`        | `Desktop\converted` | any folder, different from `In`          |
 | `Bitrate`    | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
 | `SampleRate` | `44100`             | `44100`, `48000`                         |
+| `QualityCheck` | `warn`            | `off`, `warn`, `skip`                    |
+| `MinKbps`    | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
 
 Use double backslashes (`\\`) in paths inside the JSON file. Invalid values fall back to the defaults. Close and
 reopen the app after editing. Deleting `settings.json` resets everything.

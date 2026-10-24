@@ -1,5 +1,6 @@
 # Tunes Converter: converts a folder of music to MP3 320 kbps with correct "Artist - Title" names.
 # Merges multi-value artist tags ("A" + "B" -> "A, B"), keeps cover art, never touches the originals.
+# Optional quality check: measures where the audio's high end really stops to spot fake 320/lossless files.
 # Portable: ffmpeg/ffprobe live in .\bin next to this file. Start it with TunesConverter.exe.
 # Works in Windows PowerShell 5.1 and PowerShell 7. Keep this file ASCII-only (5.1 reads it as ANSI).
 # Headless test: powershell -File TunesConverter.ps1 -NoGui -In <folder> -Out <folder>
@@ -60,7 +61,7 @@ function Log-Result([string]$status, [string]$name, [string]$note) {
     Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
     if (-not $script:Gui) { Write-Host $line; return }
     Show-Log
-    $col = switch ($status) { 'OK' { $Green } 'SKIP' { $Amber } default { $Red } }
+    $col = switch ($status) { 'OK' { $Green } 'SKIP' { $Amber } 'WARN' { $Amber } 'LOW' { $Amber } default { $Red } }
     Append-Log ('{0,-6}' -f $status) $col
     Append-Log $name $Ink
     Append-Log ("  $note`n") $Muted
@@ -102,6 +103,157 @@ function Run-Proc([string]$exe, [string]$argLine) {
     }
 }
 
+# ---- Quality check: where does the audio's high end stop? ----
+# A lossy file (or a lossless file made from one) has a hard lowpass whose frequency betrays the real bitrate.
+# Calibrated against LAME encodes of a lossless track (cutoff by bitrate): 128k ~16.8 kHz, 160k ~17.6, 192k ~18.9,
+# 224k/256k ~19.6, 320k ~20.3 kHz, lossless ~22 kHz.
+function Ensure-SpecCheck {
+    if ('SpecCheck' -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+
+public static class SpecCheck {
+    const int N = 4096;
+
+    // Highest frequency (Hz) that still carries real signal; -1 when there is not enough audio.
+    public static double Cutoff(byte[] raw, int byteCount, int sampleRate, double thresholdDb) {
+        int total = byteCount / 4;
+        if (total < N * 12) return -1;
+        float[] x = new float[total];
+        Buffer.BlockCopy(raw, 0, x, 0, total * 4);
+
+        double[] win = new double[N];
+        double winSum = 0;
+        for (int i = 0; i < N; i++) { win[i] = 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / (N - 1)); winSum += win[i]; }
+        double norm = winSum / 2.0;
+
+        int lo = (int)(total * 0.03), hi = (int)(total * 0.97) - N;
+        int maxFrames = 240;
+        int step = Math.Max(N / 2, (hi - lo) / maxFrames);
+        int bins = N / 2 + 1;
+        List<float[]> frames = new List<float[]>();
+        double[] re = new double[N], im = new double[N];
+        for (int pos = lo; pos <= hi && frames.Count < maxFrames; pos += step) {
+            double e = 0;
+            for (int i = 0; i < N; i++) { double s = x[pos + i]; e += s * s; }
+            if (Math.Sqrt(e / N) < 0.005) continue;
+            for (int i = 0; i < N; i++) { re[i] = x[pos + i] * win[i]; im[i] = 0; }
+            Fft(re, im);
+            float[] lv = new float[bins];
+            for (int b = 0; b < bins; b++) {
+                double mag = Math.Sqrt(re[b] * re[b] + im[b] * im[b]) / norm;
+                lv[b] = (float)(20 * Math.Log10(mag + 1e-12));
+            }
+            frames.Add(lv);
+        }
+        if (frames.Count < 8) return -1;
+
+        float[] p = new float[bins];
+        float[] col = new float[frames.Count];
+        int idx = (int)(0.9 * (frames.Count - 1));
+        for (int b = 0; b < bins; b++) {
+            for (int f = 0; f < frames.Count; f++) col[f] = frames[f][b];
+            Array.Sort(col);
+            p[b] = col[idx];
+        }
+        float[] sm = new float[bins];
+        int w = 12;
+        for (int b = 0; b < bins; b++) {
+            int a = Math.Max(0, b - w), c = Math.Min(bins - 1, b + w);
+            double sum = 0;
+            for (int k = a; k <= c; k++) sum += p[k];
+            sm[b] = (float)(sum / (c - a + 1));
+        }
+        for (int b = bins - 1; b > 0; b--) {
+            if (sm[b] > thresholdDb) return b * (double)sampleRate / N;
+        }
+        return 0;
+    }
+
+    static void Fft(double[] re, double[] im) {
+        int n = re.Length;
+        for (int i = 1, j = 0; i < n; i++) {
+            int bit = n >> 1;
+            for (; (j & bit) != 0; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) { double t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+        }
+        for (int len = 2; len <= n; len <<= 1) {
+            double ang = -2 * Math.PI / len;
+            double wr = Math.Cos(ang), wi = Math.Sin(ang);
+            for (int i = 0; i < n; i += len) {
+                double cr = 1, ci = 0;
+                for (int k = 0; k < len / 2; k++) {
+                    int u = i + k, v = i + k + len / 2;
+                    double tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr;
+                    re[v] = re[u] - tr; im[v] = im[u] - ti;
+                    re[u] += tr; im[u] += ti;
+                    double ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+                }
+            }
+        }
+    }
+}
+'@
+}
+
+function Measure-Cutoff([string]$path, [int]$sampleRate, [double]$duration) {
+    Ensure-SpecCheck
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+    $seek = ''
+    if ($duration -gt 240) { $seek = [string]::Format($inv, '-ss {0:0.0} -t 180 ', [Math]::Max(0, $duration / 2 - 90)) }
+    $rate = [Math]::Min($sampleRate, 48000)
+    $resample = if ($sampleRate -gt 48000) { '-ar 48000 ' } else { '' }
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $Ffmpeg
+    $psi.Arguments = '-v error ' + $seek + '-i ' + (Q $path) + ' -vn -ac 1 ' + $resample + '-f f32le -'
+    $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+    $p = [Diagnostics.Process]::Start($psi)
+    $script:Proc = $p
+    $ms = New-Object IO.MemoryStream
+    try {
+        $copy = $p.StandardOutput.BaseStream.CopyToAsync($ms)
+        $err = $p.StandardError.ReadToEndAsync()
+        while (-not $copy.IsCompleted) {
+            [Windows.Forms.Application]::DoEvents()
+            if ($script:Cancel) { try { $p.Kill() } catch {} }
+            Start-Sleep -Milliseconds 20
+        }
+        $p.WaitForExit()
+    } catch { return $null }
+    finally { $script:Proc = $null; $p.Dispose() }
+    if ($script:Cancel) { return $null }
+    [SpecCheck]::Cutoff($ms.GetBuffer(), [int]$ms.Length, $rate, -100)
+}
+
+function Test-Quality($file, $audio, $j) {
+    $none = @{ Low = $false; Msg = '' }
+    $sr = [int]$audio.sample_rate
+    if ($sr -lt 44100) { return $none }
+    $cut = Measure-Cutoff $file.FullName $sr ([double]$j.format.duration)
+    if ($null -eq $cut) { return $none }
+    if ($cut -lt 0) { return @{ Low = $false; Msg = 'quality not checked (too short or quiet)' } }
+    $est = if ($cut -ge 19950) { 320 } elseif ($cut -ge 19250) { 256 } elseif ($cut -ge 18250) { 192 } elseif ($cut -ge 17200) { 160 } else { 128 }
+    $label = switch ($est) { 320 { '320k or better' } 256 { '~224-256k' } 192 { '~192k' } 160 { '~160k' } default { '~128k or lower' } }
+    $khz = '{0:N1}' -f ($cut / 1000)
+    $lossless = $audio.codec_name -match '^(flac|alac|pcm_|wavpack|ape|tta)'
+    $claim = if ($lossless) { 'claims lossless' } elseif ($audio.bit_rate) { 'says ' + [int]([double]$audio.bit_rate / 1000) + 'k' } else { '' }
+    if ($est -lt $script:QMin) {
+        # Fake = the file claims more than its spectrum supports; otherwise it is honest but below your minimum.
+        $claimedK = if ($audio.bit_rate) { [double]$audio.bit_rate / 1000 } else { 0 }
+        if ($lossless -or $claimedK -gt $est * 1.15) {
+            $lead = if ($claim) { "$claim but " } else { '' }
+            return @{ Low = $true; Kind = 'FAKE'; Msg = "fakin' the funk: ${lead}looks like $label (cutoff $khz kHz)" }
+        }
+        return @{ Low = $true; Kind = 'LOW'; Msg = "below your $($script:QMin)k minimum: looks like $label (cutoff $khz kHz)" }
+    }
+    $msg = "source ok: $label (cutoff $khz kHz)"
+    if ($lossless -and $cut -lt 20800) { $msg += ', but a lossless file this band-limited was probably made from a lossy one' }
+    @{ Low = $false; Msg = $msg }
+}
+
 function Get-Tag($tags, [string]$name) {
     if (-not $tags) { return $null }
     foreach ($p in $tags.PSObject.Properties) { if ($p.Name -ieq $name) { return [string]$p.Value } }
@@ -125,6 +277,14 @@ function Convert-One($file, [string]$outDir) {
     $j = $pr.Out | ConvertFrom-Json
     $audio = $j.streams | Where-Object codec_type -eq 'audio' | Select-Object -First 1
     if (-not $audio) { return @{ Status = 'FAIL'; Name = $file.Name; Note = 'no audio stream' } }
+
+    $q = $null
+    if ($script:QMode -ne 'off') {
+        if ($script:Gui) { $lblStatus.Text = "Checking quality - $($file.Name)" }
+        $q = Test-Quality $file $audio $j
+        if ($script:Cancel) { return @{ Status = 'STOP' } }
+        if ($q.Low -and $script:QMode -eq 'skip') { return @{ Status = $q.Kind; Name = $file.Name; Note = $q.Msg } }
+    }
 
     $tagsets = @($j.format.tags, $audio.tags)
     function Pick([string]$n) { foreach ($t in $tagsets) { $v = Get-Tag $t $n; if ($v) { return $v } } }
@@ -171,7 +331,9 @@ function Convert-One($file, [string]$outDir) {
             throw
         }
         $note = $dupNote + $(if ($isMp3) { 'MP3 kept as is' } else { "$($script:Bitrate)k" })
-        @{ Status = 'OK'; Name = "$name.mp3"; Note = $note }
+        if ($q -and $q.Msg) { $note += " | $($q.Msg)" }
+        $status = if ($q -and $q.Low) { 'WARN' } else { 'OK' }
+        @{ Status = $status; Name = "$name.mp3"; Note = $note }
     } finally {
         Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue
     }
@@ -181,6 +343,7 @@ function Invoke-Batch([string]$in, [string]$out) {
     Set-Content -LiteralPath $LogFile -Value '' -Encoding UTF8
     $conf = Load-Settings
     $script:Bitrate = $conf.Bitrate; $script:SampleRate = $conf.SampleRate
+    $script:QMode = $conf.QualityCheck; $script:QMin = $conf.MinKbps
     if (-not $Ffmpeg -or -not $Ffprobe) { Log 'ERROR: ffmpeg not found. Put ffmpeg.exe and ffprobe.exe in the bin folder (see docs\HOWTO.md) or run Get-FFmpeg.ps1.'; return }
     if (-not (Test-Path -LiteralPath $in -PathType Container)) { Log "ERROR: songs folder not found: $in"; return }
     if (-not $out) { Log 'ERROR: pick an output folder.'; return }
@@ -188,7 +351,7 @@ function Invoke-Batch([string]$in, [string]$out) {
     New-Item -ItemType Directory -Force -Path $out | Out-Null
     $files = @(Get-ChildItem -LiteralPath $in -File | Where-Object { $Extensions -contains $_.Extension.ToLower() } | Sort-Object Name)
     if (-not $files) { Log 'No music files found in that folder.'; return }
-    $count = @{ OK = 0; SKIP = 0; FAIL = 0 }
+    $count = @{ OK = 0; WARN = 0; FAKE = 0; LOW = 0; SKIP = 0; FAIL = 0 }
     if ($script:Gui) { Set-Progress 0 $files.Count; $lblCount.Text = "0 / $($files.Count)" }
     $script:Used = New-Object 'System.Collections.Generic.HashSet[string]'
     $i = 0
@@ -203,14 +366,16 @@ function Invoke-Batch([string]$in, [string]$out) {
         Log-Result $res.Status $res.Name $res.Note
         if ($script:Gui) { Set-Progress $i $files.Count; $lblCount.Text = "$i / $($files.Count)" }
     }
-    $summary = "Done: $($count.OK) converted, $($count.SKIP) skipped, $($count.FAIL) failed."
+    $summary = "Done: $($count.OK + $count.WARN) converted, $($count.SKIP) skipped, $($count.FAIL) failed."
+    if ($count.WARN) { $summary += " $($count.WARN) flagged as low quality." }
+    if ($count.FAKE + $count.LOW) { $summary += " $($count.FAKE + $count.LOW) not converted (below quality minimum, $($count.FAKE) of them fakes)." }
     Log $summary
     if ($script:Gui) { $lblStatus.Text = $summary }
 }
 
 function Load-Settings {
     $desk = [Environment]::GetFolderPath('Desktop')
-    $d = @{ In = (Join-Path $desk 'NewTunes'); Out = (Join-Path $desk 'converted'); Bitrate = 320; SampleRate = 44100 }
+    $d = @{ In = (Join-Path $desk 'NewTunes'); Out = (Join-Path $desk 'converted'); Bitrate = 320; SampleRate = 44100; QualityCheck = 'warn'; MinKbps = 320 }
     if (Test-Path -LiteralPath $SettingsFile) {
         try {
             $s = Get-Content -LiteralPath $SettingsFile -Raw | ConvertFrom-Json
@@ -218,14 +383,16 @@ function Load-Settings {
             if ($s.Out) { $d.Out = $s.Out }
             if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.Bitrate) { $d.Bitrate = [int]$s.Bitrate }
             if (@(44100, 48000) -contains [int]$s.SampleRate) { $d.SampleRate = [int]$s.SampleRate }
+            if (@('off', 'warn', 'skip') -contains [string]$s.QualityCheck) { $d.QualityCheck = [string]$s.QualityCheck }
+            if (@(128, 160, 192, 224, 256, 320) -contains [int]$s.MinKbps) { $d.MinKbps = [int]$s.MinKbps }
         } catch {}
     }
     $d
 }
 
-function Save-Settings([string]$in, [string]$out) {
+function Save-Settings([hashtable]$changes) {
     $s = Load-Settings
-    $s.In = $in; $s.Out = $out
+    foreach ($k in $changes.Keys) { $s[$k] = $changes[$k] }
     $s | ConvertTo-Json | Set-Content -LiteralPath $SettingsFile -Encoding UTF8
 }
 
@@ -321,7 +488,7 @@ $cfg = Load-Settings
 
 $form = New-Object Windows.Forms.Form
 $form.Text = 'Tunes Converter'
-$form.ClientSize = New-Object Drawing.Size(800, 680)
+$form.ClientSize = New-Object Drawing.Size(800, 716)
 $form.MinimumSize = $form.Size
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = $Bg; $form.ForeColor = $Ink
@@ -407,28 +574,63 @@ function Add-Chip([string]$text, [int]$x) {
 $cx = 28
 foreach ($t in "MP3 $($cfg.Bitrate) kbps",'Full artist names', 'Cover art kept', 'Originals untouched') { $cx = Add-Chip $t $cx }
 
+# Quality-check toggles (click to change; saved to settings.json)
+$script:QMode = $cfg.QualityCheck; $script:QMin = $cfg.MinKbps
+$tip = New-Object Windows.Forms.ToolTip
+function Add-ToggleChip([int]$x, [int]$w, [string]$tooltip) {
+    $chip = Add-Panel $form $x 326 $w 30 $Card $FieldBorder 15 'Top,Left'
+    $chip.Cursor = 'Hand'
+    $lbl = Add-Label $chip '' 14 4 (New-Object Drawing.Font('Segoe UI', 9.4)) $ChipInk
+    $lbl.Cursor = 'Hand'
+    $tip.SetToolTip($chip, $tooltip); $tip.SetToolTip($lbl, $tooltip)
+    [pscustomobject]@{ Chip = $chip; Label = $lbl }
+}
+$modeChip = Add-ToggleChip 28 216 'Click to change. Off: no check. Warn: convert everything but flag low-quality files. Skip: do not convert files below the minimum.'
+$minChip  = Add-ToggleChip 252 160 'Click to change the lowest real quality you accept (judged from the audio, not the file label).'
+function Update-QualityChips {
+    $modeChip.Label.Text = switch ($script:QMode) { 'off' { 'Quality check: off' } 'warn' { 'Quality check: warn' } default { 'Quality check: skip fakes' } }
+    $modeChip.Label.ForeColor = switch ($script:QMode) { 'off' { $Muted } 'warn' { $Amber } default { $Accent } }
+    $minChip.Label.Text = "Minimum: $($script:QMin) kbps"
+    $minChip.Label.ForeColor = if ($script:QMode -eq 'off') { $GhostOffText } else { $ChipInk }
+}
+Update-QualityChips
+$cycleMode = {
+    $order = 'off', 'warn', 'skip'
+    $script:QMode = $order[([Array]::IndexOf($order, $script:QMode) + 1) % 3]
+    Save-Settings @{ QualityCheck = $script:QMode }
+    Update-QualityChips
+}
+$cycleMin = {
+    $order = 320, 256, 224, 192, 160, 128
+    $script:QMin = $order[([Array]::IndexOf($order, [int]$script:QMin) + 1) % $order.Count]
+    Save-Settings @{ MinKbps = $script:QMin }
+    Update-QualityChips
+}
+foreach ($c in $modeChip.Chip, $modeChip.Label) { $c.Add_Click($cycleMode) }
+foreach ($c in $minChip.Chip, $minChip.Label) { $c.Add_Click($cycleMin) }
+
 # Actions
-$btnStart = Add-Button $form 'START' 28 340 200 54 $Accent $AccentHover $AccentDark (C '#1d3a2b') (C '#7fd6a6') 8 'Top,Left'
+$btnStart = Add-Button $form 'START' 28 376 200 54 $Accent $AccentHover $AccentDark (C '#1d3a2b') (C '#7fd6a6') 8 'Top,Left'
 $btnStart.Font = New-Object Drawing.Font('Segoe UI Semibold', 12)
-$btnStop = Add-Button $form 'Stop' 240 340 96 54 $Ghost $GhostHover (C '#ff9a9a') $GhostOff $GhostOffText 8 'Top,Left'
+$btnStop = Add-Button $form 'Stop' 240 376 96 54 $Ghost $GhostHover (C '#ff9a9a') $GhostOff $GhostOffText 8 'Top,Left'
 $btnStop.Enabled = $false
-$btnOpen = Add-Button $form 'Open output folder' 582 340 190 54 $Ghost $GhostHover $Ink $GhostOff $GhostOffText 8 'Top,Right'
+$btnOpen = Add-Button $form 'Open output folder' 582 376 190 54 $Ghost $GhostHover $Ink $GhostOff $GhostOffText 8 'Top,Right'
 
 # Status + progress
 $lblStatus = New-Object Windows.Forms.Label
-$lblStatus.Text = 'Ready.'; $lblStatus.Location = New-Object Drawing.Point(28, 414); $lblStatus.Size = New-Object Drawing.Size(650, 20)
+$lblStatus.Text = 'Ready.'; $lblStatus.Location = New-Object Drawing.Point(28, 450); $lblStatus.Size = New-Object Drawing.Size(650, 20)
 $lblStatus.Font = New-Object Drawing.Font('Segoe UI', 9.75); $lblStatus.ForeColor = $Muted; $lblStatus.BackColor = $Bg
 $lblStatus.AutoEllipsis = $true; $lblStatus.Anchor = 'Top,Left,Right'
 $lblCount = New-Object Windows.Forms.Label
-$lblCount.Text = '0 / 0'; $lblCount.Location = New-Object Drawing.Point(682, 414); $lblCount.Size = New-Object Drawing.Size(90, 20)
+$lblCount.Text = '0 / 0'; $lblCount.Location = New-Object Drawing.Point(682, 450); $lblCount.Size = New-Object Drawing.Size(90, 20)
 $lblCount.TextAlign = 'TopRight'; $lblCount.Font = New-Object Drawing.Font('Segoe UI', 9.75); $lblCount.ForeColor = $Ink; $lblCount.BackColor = $Bg; $lblCount.Anchor = 'Top,Right'
 $form.Controls.AddRange(@($lblStatus, $lblCount))
-$track = Add-Panel $form 28 442 744 6 $Field $null 3 'Top,Left,Right'
+$track = Add-Panel $form 28 478 744 6 $Field $null 3 'Top,Left,Right'
 $fill  = Add-Panel $track 0 0 0 6 $Accent $null 3 $null
 $track.Add_Resize({ $fill.Width = [int]($track.Width * $script:Ratio) })
 
 # Log card
-$cardLog = Add-Panel $form 28 468 744 184 $Card $Border 10 'Top,Bottom,Left,Right'
+$cardLog = Add-Panel $form 28 504 744 184 $Card $Border 10 'Top,Bottom,Left,Right'
 $cardLog.Padding = New-Object Windows.Forms.Padding(16, 14, 16, 14)
 $lblEmpty = New-Object Windows.Forms.Label
 $lblEmpty.Text = 'Conversion log appears here.'; $lblEmpty.Dock = 'Fill'; $lblEmpty.TextAlign = 'MiddleCenter'
@@ -445,6 +647,7 @@ function Set-Running([bool]$running) {
     $btnStop.Enabled = $running
     $rowIn.Browse.Enabled = -not $running; $rowOut.Browse.Enabled = -not $running
     $txtIn.ReadOnly = $running; $txtOut.ReadOnly = $running
+    $modeChip.Chip.Enabled = -not $running; $minChip.Chip.Enabled = -not $running
 }
 
 $btnStart.Add_Click({
@@ -452,7 +655,7 @@ $btnStart.Add_Click({
     Set-Running $true
     $txtLog.Clear(); Set-Progress 0 1; $lblCount.Text = '0 / 0'
     try {
-        Save-Settings $txtIn.Text $txtOut.Text
+        Save-Settings @{ In = $txtIn.Text; Out = $txtOut.Text }
         Invoke-Batch $txtIn.Text.Trim() $txtOut.Text.Trim()
     } catch { Log "ERROR: $($_.Exception.Message)" }
     finally { Set-Running $false }
