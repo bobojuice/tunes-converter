@@ -1,0 +1,13 @@
+# Per-user files (folders you picked, last run's file names)
+settings.json
+last-run.log
+
+# Build output and bundled third-party binaries
+TunesConverter.exe
+dist/
+bin/*
+!bin/README.txt
+
+# Conversion leftovers
+*.part
+*.mp3
