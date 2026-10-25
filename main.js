@@ -8,9 +8,12 @@ const { runBatch } = require('./src/engine/batch');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
-const { rendererSettingsChanges, folderToOpen, createSlot } = require('./src/engine/guards');
+const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop } = require('./src/engine/guards');
+const { EXTENSIONS } = require('./src/engine/batch');
+const { fetchLatest } = require('./src/engine/update');
 
 const batchSlot = createSlot();
+let droppedFiles = [];
 let dlAbort = null;
 
 // Where settings and the log live: next to the app on Windows (portable zip), otherwise the user's app-data folder.
@@ -121,7 +124,28 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('batch:start', async (event, { inDir, outDir } = {}) => {
+  // Files or a folder dropped on the window. A folder becomes the songs folder; files are held for the next run.
+  ipcMain.handle('drop:paths', (event, dropped) => {
+    if (!trusted(event) || batchSlot.busy) return { kind: 'none' };
+    const r = classifyDrop(dropped, EXTENSIONS);
+    droppedFiles = r.kind === 'files' ? r.files : [];
+    if (r.kind === 'folder') {
+      const s = settings.save(paths().settings, base(), { In: r.dir });
+      return { kind: 'folder', dir: r.dir, settings: s };
+    }
+    return r.kind === 'files' ? { kind: 'files', count: r.files.length } : { kind: 'none' };
+  });
+
+  ipcMain.handle('drop:clear', (event) => {
+    if (trusted(event)) droppedFiles = [];
+  });
+
+  ipcMain.handle('app:checkUpdate', async (event) => {
+    if (!trusted(event)) return null;
+    return fetchLatest(require('./package.json').version);
+  });
+
+  ipcMain.handle('batch:start', async (event, { inDir, outDir, useDropped } = {}) => {
     if (!trusted(event)) return { ok: false };
     const ctrl = batchSlot.take(); // reserved before any await, so Stop works during preparation and starts cannot overlap
     if (!ctrl) return { ok: false };
@@ -132,6 +156,7 @@ function registerIpc() {
       try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ }
       return await runBatch({
         inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal,
+        inputs: useDropped ? droppedFiles : undefined,
         onEvent: (ev) => {
           if (ev.type === 'message') appendLog(ev.text);
           if (ev.type === 'result') appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`);
@@ -139,6 +164,7 @@ function registerIpc() {
         }
       });
     } finally {
+      if (useDropped) droppedFiles = [];
       batchSlot.release(ctrl);
     }
   });
@@ -171,8 +197,8 @@ function registerIpc() {
 function createWindow() {
   nativeTheme.themeSource = 'dark';
   win = new BrowserWindow({
-    width: 820,
-    height: 840,
+    width: current().WinW,
+    height: current().WinH,
     minWidth: 720,
     minHeight: 700,
     show: false,
@@ -190,6 +216,12 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.once('ready-to-show', () => win.show());
+  win.on('close', () => {
+    try {
+      const b = win.getNormalBounds();
+      settings.save(paths().settings, base(), { WinW: b.width, WinH: b.height });
+    } catch { /* remembering the size is best effort */ }
+  });
   win.on('closed', () => { win = null; });
   win.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   return win;

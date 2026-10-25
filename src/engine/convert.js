@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { run } = require('./proc');
 const { joinArtists, buildName, pickTag } = require('./naming');
 const { testQuality } = require('./quality');
+const { FORMATS } = require('./formats');
 
 async function probe(ffprobe, file, signal) {
   const r = await run(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { signal });
@@ -50,8 +51,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   if (!stem) return { status: 'FAIL', name: baseName, note: 'empty file name' };
   const { name, duplicate } = allocator.allocate(stem);
   const dupNote = duplicate ? 'duplicate name; ' : '';
-  const dest = path.join(outDir, `${name}.mp3`);
-  if (fs.existsSync(dest)) return { status: 'SKIP', name: `${name}.mp3`, note: 'already exists' };
+  const fmt = FORMATS[settings.Format] || FORMATS.mp3;
+  const outName = `${name}${fmt.ext}`;
+  const dest = path.join(outDir, outName);
+  if (fs.existsSync(dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
 
   let quality = null;
   if (settings.QualityCheck !== 'off') {
@@ -64,14 +67,23 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   }
 
   const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
-  const isMp3 = audio.codec_name === 'mp3';
-  const args = ['-v', 'error', '-y', '-i', file, '-map', '0:a:0', '-map', '0:v?', '-map_metadata', '0'];
-  if (isMp3) args.push('-c', 'copy');
-  else args.push('-c:a', 'libmp3lame', '-b:a', `${settings.Bitrate}k`, '-ar', String(settings.SampleRate), '-c:v', 'copy', '-disposition:v', 'attached_pic');
-  args.push('-id3v2_version', '3');
+  const isMp3 = fmt === FORMATS.mp3 && audio.codec_name === 'mp3'; // an MP3 stays as is (no second lossy pass)
+  const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
+  const args = ['-v', 'error', '-y', '-i', file, '-map', '0:a:0'];
+  if (fmt !== FORMATS.opus) args.push('-map', '0:v?'); // cover art (the Ogg/Opus container takes none this way)
+  args.push('-map_metadata', '0');
+  if (isMp3) {
+    args.push('-c', 'copy');
+  } else {
+    args.push('-c:a', fmt.encoder);
+    if (fmt.lossy) args.push('-b:a', `${kbps}k`);
+    if (fmt !== FORMATS.opus && fmt !== FORMATS.flac) args.push('-ar', String(settings.SampleRate));
+    if (fmt !== FORMATS.opus) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
+  }
+  if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
   if (artist) args.push('-metadata', `artist=${artist}`);
   if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
-  args.push('-f', 'mp3', part);
+  args.push('-f', fmt.muxer, part);
 
   try {
     const r = await run(tools.ffmpeg, args, { signal });
@@ -80,10 +92,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       const lines = r.stderr.trim().split(/\r?\n/);
       return { status: 'FAIL', name: baseName, note: lines[lines.length - 1] || 'conversion failed' };
     }
-    if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: `${name}.mp3`, note: 'already exists' };
-    let note = dupNote + (isMp3 ? 'MP3 kept as is' : `${settings.Bitrate}k`);
+    if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
+    let note = dupNote + (isMp3 ? 'MP3 kept as is' : fmt.lossy ? `${settings.Bitrate}k` : 'lossless');
     if (quality && quality.msg) note += ` | ${quality.msg}`;
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: `${name}.mp3`, note };
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {

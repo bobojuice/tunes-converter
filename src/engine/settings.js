@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { FORMAT_KEYS } = require('./formats');
 
 const BITRATES = [128, 160, 192, 224, 256, 320];
 const SAMPLE_RATES = [44100, 48000];
@@ -14,6 +15,10 @@ function defaults(desktopDir) {
     SampleRate: 44100,
     QualityCheck: 'warn',
     MinKbps: 320,
+    Format: 'mp3',
+    Recurse: false,
+    WinW: 820,
+    WinH: 840,
     FfmpegDir: ''
   };
 }
@@ -28,6 +33,12 @@ function merge(base, raw) {
   if (SAMPLE_RATES.includes(Number(raw.SampleRate))) s.SampleRate = Number(raw.SampleRate);
   if (MODES.includes(raw.QualityCheck)) s.QualityCheck = raw.QualityCheck;
   if (BITRATES.includes(Number(raw.MinKbps))) s.MinKbps = Number(raw.MinKbps);
+  if (FORMAT_KEYS.includes(raw.Format)) s.Format = raw.Format;
+  if (typeof raw.Recurse === 'boolean') s.Recurse = raw.Recurse;
+  for (const k of ['WinW', 'WinH']) {
+    const n = Number(raw[k]);
+    if (Number.isInteger(n) && n >= 400 && n <= 10000) s[k] = n;
+  }
   if (typeof raw.FfmpegDir === 'string') s.FfmpegDir = raw.FfmpegDir;
   return s;
 }

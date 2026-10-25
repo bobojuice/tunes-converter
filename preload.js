@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // The only things the window can ask the app to do.
 contextBridge.exposeInMainWorld('tc', {
@@ -9,7 +9,11 @@ contextBridge.exposeInMainWorld('tc', {
   pickFfmpeg: () => ipcRenderer.invoke('dialog:pickFfmpeg'),
   recheckFfmpeg: () => ipcRenderer.invoke('ffmpeg:recheck'),
   downloadFfmpeg: () => ipcRenderer.invoke('ffmpeg:download'),
-  startBatch: (inDir, outDir) => ipcRenderer.invoke('batch:start', { inDir, outDir }),
+  startBatch: (inDir, outDir, useDropped) => ipcRenderer.invoke('batch:start', { inDir, outDir, useDropped: Boolean(useDropped) }),
+  pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  dropPaths: (list) => ipcRenderer.invoke('drop:paths', list),
+  clearDropped: () => ipcRenderer.invoke('drop:clear'),
+  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
   stop: () => ipcRenderer.invoke('batch:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

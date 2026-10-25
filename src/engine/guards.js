@@ -27,6 +27,23 @@ function folderToOpen(which, s) {
   return resolveDirectory(which === 'in' ? s.In : s.Out);
 }
 
+// What was dropped on the window: a folder (becomes the songs folder), music files, or nothing usable.
+// `extensions` is a Set of lower-case extensions such as '.flac'.
+function classifyDrop(paths, extensions) {
+  if (!Array.isArray(paths)) return { kind: 'none' };
+  const list = paths.filter((p) => typeof p === 'string' && p && !p.includes('\0')).slice(0, 5000);
+  const dir = list.map(resolveDirectory).find(Boolean);
+  if (dir) return { kind: 'folder', dir };
+  const files = [];
+  for (const p of list) {
+    try {
+      const abs = path.resolve(p);
+      if (fs.statSync(abs).isFile() && extensions.has(path.extname(abs).toLowerCase())) files.push(abs);
+    } catch { /* not readable: ignore */ }
+  }
+  return files.length ? { kind: 'files', files } : { kind: 'none' };
+}
+
 // One-at-a-time operation slot. take() succeeds synchronously (before any await) or returns null.
 function createSlot() {
   let owner = null;
@@ -42,4 +59,4 @@ function createSlot() {
   };
 }
 
-module.exports = { resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot };
+module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot };

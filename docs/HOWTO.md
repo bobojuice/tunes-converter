@@ -85,6 +85,8 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 5. **Stop** ends the batch after cancelling the current file cleanly (no half-written files are left behind).
 6. **Open output folder** jumps to the results.
 
+**Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click the format chip to choose MP3, AAC (M4A), FLAC or Opus (Opus tops out at 256 kbps); click **Subfolders** to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
+
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
 reason is shown; the rest of the batch continues). Amber **WARN**/**LOW** and red **FAKE** come from the
 [quality check](#quality-check-spot-fake-files).
@@ -178,6 +180,9 @@ the app is closed:
 | `SampleRate`   | `44100`             | `44100`, `48000`                         |
 | `QualityCheck` | `warn`              | `off`, `warn`, `skip`                    |
 | `MinKbps`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
+| `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `opus` (click the format chip) |
+| `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
+| `WinW`, `WinH` | `820`, `840`        | window size, saved when you close the app |
 | `FfmpegDir`    | empty               | folder containing `ffmpeg` and `ffprobe` (set by **Locate ffmpeg...**) |
 
 Use double backslashes (`\\`) in Windows paths inside the JSON file. Each value is checked on its own; an invalid

@@ -41,10 +41,12 @@ function findTools(options) {
   return ffmpeg && ffprobe ? { ffmpeg, ffprobe } : null;
 }
 
-// True when this ffmpeg can write MP3 (some minimal builds cannot).
-async function hasMp3Encoder(ffmpeg) {
+// True when this ffmpeg has the named encoder (some minimal builds lack libmp3lame or libopus).
+async function hasEncoder(ffmpeg, name) {
   const r = await run(ffmpeg, ['-hide_banner', '-encoders']);
-  return r.code === 0 && /libmp3lame/.test(r.stdout);
+  return r.code === 0 && new RegExp(`\\s${name}\\s`).test(r.stdout);
 }
 
-module.exports = { findTools, hasMp3Encoder, candidateDirs, exe };
+const hasMp3Encoder = (ffmpeg) => hasEncoder(ffmpeg, 'libmp3lame');
+
+module.exports = { findTools, hasMp3Encoder, hasEncoder, candidateDirs, exe };

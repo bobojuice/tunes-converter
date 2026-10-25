@@ -4,6 +4,8 @@
   const BITRATES = [128, 160, 192, 224, 256, 320];
   const MIN_ORDER = [320, 256, 224, 192, 160, 128];
   const MODES = ['off', 'warn', 'skip'];
+  const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', opus: 'Opus' };
+  const FORMAT_ORDER = Object.keys(FORMATS);
   const MODE_LABEL = { off: 'Quality check: off', warn: 'Quality check: warn', skip: 'Quality check: skip fakes' };
   const MODE_TIP = {
     off: 'No quality check (fastest). Click to change.',
@@ -15,6 +17,9 @@
   let state = null;
   let running = false;
   let downloading = false;
+  let droppedCount = 0;
+  let runStart = 0;
+  let ranOnce = false;
 
   const settings = () => state.settings;
 
@@ -26,7 +31,12 @@
 
   function renderChips() {
     const s = settings();
-    $('chipBitrate').querySelector('.t').textContent = `MP3 ${s.Bitrate} kbps`;
+    $('chipFormat').querySelector('.t').textContent = FORMATS[s.Format];
+    $('chipFormat').title = 'Output format. Click to change.';
+    $('chipRecurse').querySelector('.t').textContent = s.Recurse ? 'Subfolders: included' : 'Subfolders: off';
+    $('chipRecurse').dataset.on = String(s.Recurse);
+    $('chipRecurse').title = 'Also convert music in sub-folders, keeping the same folder layout. Click to change.';
+    $('chipBitrate').querySelector('.t').textContent = s.Format === 'flac' ? 'Lossless' : `${s.Format === 'opus' ? Math.min(s.Bitrate, 256) : s.Bitrate} kbps`;
     $('chipBitrate').title = 'Output bitrate. Click to change.';
     $('chipRate').querySelector('.t').textContent = `${s.SampleRate / 1000} kHz`;
     $('chipRate').title = 'Output sample rate. Click to change.';
@@ -41,9 +51,9 @@
   function setRunning(value) {
     running = value;
     $('start').disabled = value;
-    $('start').textContent = value ? 'Converting...' : 'START';
+    $('start').textContent = value ? 'Converting...' : ranOnce ? 'RUN AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
-    for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
+    for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipFormat', 'chipRecurse', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
   }
 
   // ---- log ----
@@ -91,7 +101,12 @@
     const pct = total ? Math.round((index / total) * 100) : 0;
     $('fill').style.width = `${pct}%`;
     $('track').setAttribute('aria-valuenow', String(pct));
-    $('count').textContent = `${index} / ${total}`;
+    let eta = '';
+    if (running && index > 0 && index < total) {
+      const secs = Math.round(((Date.now() - runStart) / index) * (total - index) / 1000);
+      eta = secs >= 90 ? ` - about ${Math.round(secs / 60)} min left` : ` - about ${Math.max(secs, 5)} s left`;
+    }
+    $('count').textContent = `${index} / ${total}${eta}`;
   }
 
   function onBatchEvent(ev) {
@@ -106,6 +121,12 @@
     } else if (ev.type === 'done') {
       $('status').textContent = ev.summary;
     }
+  }
+
+  function setDropped(count) {
+    droppedCount = count;
+    $('dropped').hidden = count === 0;
+    $('droppedText').textContent = count === 1 ? '1 dropped file will be converted.' : `${count} dropped files will be converted.`;
   }
 
   // ---- ffmpeg banner ----
@@ -167,6 +188,8 @@
 
     const cycle = (list, value) => list[(list.indexOf(value) + 1) % list.length];
     $('chipBitrate').addEventListener('click', () => save({ Bitrate: cycle(BITRATES.slice().reverse(), settings().Bitrate) }));
+    $('chipFormat').addEventListener('click', () => save({ Format: cycle(FORMAT_ORDER, settings().Format) }));
+    $('chipRecurse').addEventListener('click', () => save({ Recurse: !settings().Recurse }));
     $('chipRate').addEventListener('click', () => save({ SampleRate: settings().SampleRate === 44100 ? 48000 : 44100 }));
     $('chipMode').addEventListener('click', () => save({ QualityCheck: cycle(MODES, settings().QualityCheck) }));
     $('chipMin').addEventListener('click', () => save({ MinKbps: cycle(MIN_ORDER, settings().MinKbps) }));
@@ -174,20 +197,62 @@
     $('start').addEventListener('click', async () => {
       if (running) return;
       setRunning(true);
+      runStart = Date.now();
       clearLog();
       setProgress(0, 0);
       $('status').textContent = 'Starting...';
       try {
-        await window.tc.startBatch($('inDir').value.trim(), $('outDir').value.trim());
+        await window.tc.startBatch($('inDir').value.trim(), $('outDir').value.trim(), droppedCount > 0);
       } catch (err) {
         addMessage(`ERROR: ${err.message}`, 'error');
         $('status').textContent = `ERROR: ${err.message}`;
       } finally {
+        ranOnce = true;
+        setDropped(0);
         setRunning(false);
       }
     });
     $('stop').addEventListener('click', () => { $('status').textContent = 'Stopping...'; window.tc.stop(); });
     $('openOut').addEventListener('click', () => window.tc.openFolder('out'));
+    // ---- drag and drop ----
+    let dragDepth = 0;
+    const hint = (on) => { $('dropHint').hidden = !on; };
+    document.addEventListener('dragenter', (e) => { e.preventDefault(); if (!running) { dragDepth += 1; hint(true); } });
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) hint(false); });
+    document.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dragDepth = 0;
+      hint(false);
+      if (running) return;
+      const list = Array.from(e.dataTransfer.files).map((f) => window.tc.pathForFile(f)).filter(Boolean);
+      const r = await window.tc.dropPaths(list);
+      if (r.kind === 'folder') {
+        state.settings = r.settings;
+        $('inDir').value = r.dir;
+        setDropped(0);
+      } else if (r.kind === 'files') {
+        setDropped(r.count);
+      } else {
+        addMessage('Nothing to convert in what was dropped (music files or a folder are expected).', 'error');
+      }
+    });
+    $('droppedClear').addEventListener('click', () => { window.tc.clearDropped(); setDropped(0); });
+
+    let updateUrl = '';
+    $('update').addEventListener('click', async () => {
+      if (updateUrl) { window.tc.openExternal(updateUrl); return; }
+      $('updateMsg').textContent = 'Checking...';
+      const r = await window.tc.checkUpdate();
+      if (!r || !r.ok) { $('updateMsg').textContent = (r && r.error) || 'Could not check.'; return; }
+      if (r.newer) {
+        $('updateMsg').textContent = `Version ${r.latest} is available.`;
+        $('update').textContent = 'Open download page';
+        updateUrl = r.url;
+      } else {
+        $('updateMsg').textContent = 'You have the latest version.';
+      }
+    });
     $('help').addEventListener('click', () => window.tc.openExternal(HELP_URL));
 
     $('locate').addEventListener('click', async () => { const ff = await window.tc.pickFfmpeg(); if (ff) applyFfmpeg(ff); });

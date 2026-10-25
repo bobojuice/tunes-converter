@@ -117,3 +117,10 @@ button.toggle:disabled { cursor: default; opacity: 0.6; }
   .actions { flex-wrap: wrap; }
   .btn.primary { width: 100%; }
 }
+
+.dropped { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--field-border); border-radius: 12px; color: var(--chip-ink); font-size: 13px; }
+.dropped[hidden] { display: none; }
+.drop-hint { position: fixed; inset: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--accent); border-radius: 18px; background: rgba(15, 17, 21, 0.88); color: var(--accent); font-size: 18px; pointer-events: none; z-index: 10; }
+.drop-hint[hidden] { display: none; }
+#chipRecurse[data-on="true"] .t { color: var(--accent); }
+#updateMsg { color: var(--chip-ink); }

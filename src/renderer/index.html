@@ -16,7 +16,7 @@
     </div>
     <div>
       <h1>Tunes Converter</h1>
-      <p class="sub">Pick a folder, press start, get tidy MP3s.</p>
+      <p class="sub">Pick a folder, press start, get tidy music files.</p>
     </div>
   </header>
 
@@ -41,7 +41,7 @@
       </div>
     </div>
     <div class="field">
-      <label for="outDir">SAVE MP3s TO</label>
+      <label for="outDir">SAVE TO</label>
       <div class="pick">
         <input id="outDir" type="text" spellcheck="false" autocomplete="off">
         <button id="browseOut" class="btn ghost" type="button">Browse</button>
@@ -52,6 +52,8 @@
   <div class="chips" id="chips">
     <button id="chipBitrate" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
     <button id="chipRate" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
+    <button id="chipFormat" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
+    <button id="chipRecurse" class="chip toggle" type="button"><span class="t"></span></button>
     <span class="chip"><span class="dot"></span>Full artist names</span>
     <span class="chip"><span class="dot"></span>Cover art kept</span>
     <span class="chip"><span class="dot"></span>Originals untouched</span>
@@ -59,6 +61,11 @@
   <div class="chips">
     <button id="chipMode" class="chip toggle" type="button"><span class="t"></span></button>
     <button id="chipMin" class="chip toggle" type="button"><span class="t"></span></button>
+  </div>
+
+  <div id="dropped" class="dropped" hidden>
+    <span id="droppedText"></span>
+    <button id="droppedClear" class="link" type="button">Use the folder instead</button>
   </div>
 
   <div class="actions">
@@ -78,7 +85,8 @@
     <div id="log" class="lines" hidden></div>
   </section>
 
-  <footer class="foot"><span id="version"></span><span id="dataDir" class="grow"></span><button id="help" class="link" type="button">Help</button></footer>
+  <footer class="foot"><span id="version"></span><span id="dataDir" class="grow"></span><span id="updateMsg"></span><button id="update" class="link" type="button">Check for updates</button><button id="help" class="link" type="button">Help</button></footer>
+  <div id="dropHint" class="drop-hint" hidden>Drop a folder or music files here</div>
 </main>
 <script src="renderer.js"></script>
 </body>
