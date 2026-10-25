@@ -210,3 +210,19 @@ test('batch: a mirrored folder named like a converted file does not make that fi
   assert.ok(fs.existsSync(path.join(out, 'album (2).mp3')));
   assert.ok(fs.existsSync(path.join(out, 'album.mp3', 'track.mp3')));
 });
+
+test('batch: with joining off, artist tags that live on the stream (Opus) survive unchanged', { skip }, async () => {
+  if (!(await hasEncoder(tools.ffmpeg, 'libopus'))) return;
+  const inDir = path.join(tmp, 'in-streamtags');
+  fs.mkdirSync(inDir);
+  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', '-metadata', 'artist=A;B', '-metadata', 'album_artist=C;D', '-metadata', 'title=T', path.join(inDir, 's.opus')]);
+  for (const format of ['mp3', 'flac']) {
+    const out = path.join(tmp, `o-streamtags-${format}`);
+    const r = await runBatch({ inDir, outDir: out, settings: { ...base, Format: format, QualityCheck: 'off', JoinArtists: false }, tools, signal: sig(), onEvent: () => {} });
+    assert.equal(r.counts.OK, 1, format);
+    const file = path.join(out, fs.readdirSync(out)[0]);
+    const tags = spawnSync(tools.ffprobe, ['-v', 'error', '-show_entries', 'format_tags=artist,album_artist:stream_tags=artist,album_artist', '-of', 'default=nw=1', file], { encoding: 'utf8' }).stdout;
+    assert.match(tags, /artist=A;B/i, format);
+    assert.match(tags, /album_artist=C;D/i, format);
+  }
+});

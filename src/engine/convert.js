@@ -87,8 +87,8 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (fmt !== FORMATS.opus && keepCover) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
   }
   if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
-  if (artist && settings.JoinArtists !== false) args.push('-metadata', `artist=${artist}`);
-  if (albumArtist && settings.JoinArtists !== false) args.push('-metadata', `album_artist=${albumArtist}`);
+  if (artist) args.push('-metadata', `artist=${artist}`);
+  if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
   args.push('-f', fmt.muxer, part);
 
   try {
