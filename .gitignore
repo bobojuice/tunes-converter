@@ -1,13 +1,14 @@
-# Per-user files (folders you picked, last run's file names)
+node_modules/
+dist/
+
+# Per-user files
 settings.json
 last-run.log
 
-# Build output and bundled third-party binaries
-TunesConverter.exe
-dist/
-bin/*
-!bin/README.txt
-
-# Conversion leftovers
+# Local test output
+gui-smoke.png
 *.part
 *.mp3
+
+# A developer's own ffmpeg (never committed)
+/bin/

@@ -4,5 +4,6 @@
   "Bitrate": 320,
   "SampleRate": 44100,
   "QualityCheck": "warn",
-  "MinKbps": 320
+  "MinKbps": 320,
+  "FfmpegDir": ""
 }

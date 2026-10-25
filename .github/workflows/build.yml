@@ -1,0 +1,75 @@
+name: build
+
+on:
+  push:
+    branches: [main, v2]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows, os: windows-latest, args: --win }
+          - { name: macos, os: macos-latest, args: --mac }
+          - { name: linux, os: ubuntu-latest, args: --linux }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # ffmpeg is only needed by the tests; it is never bundled into the app.
+      - name: Install ffmpeg for the tests
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) sudo apt-get update && sudo apt-get install -y ffmpeg ;;
+            macOS) brew install ffmpeg ;;
+            Windows) choco install ffmpeg -y --no-progress ;;
+          esac
+
+      - run: npm ci
+      - run: npm test
+      - run: npx electron-builder ${{ matrix.args }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tunes-converter-${{ matrix.name }}
+          path: |
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  # Pushing a tag like v2.0.0 collects the builds into a DRAFT release; review it, then publish it from GitHub.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" --draft \
+            --title "Tunes Converter ${GITHUB_REF_NAME#v}" \
+            --notes "Downloads for Windows, macOS and Linux. See docs/HOWTO.md for setup (ffmpeg is not included)."

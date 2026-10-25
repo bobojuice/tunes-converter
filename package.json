@@ -1,0 +1,93 @@
+{
+  "name": "tunes-converter",
+  "productName": "Tunes Converter",
+  "version": "2.0.0",
+  "description": "Convert folders of music to MP3 with correct Artist - Title names and an optional fake-quality check.",
+  "main": "main.js",
+  "license": "MIT",
+  "private": true,
+  "author": "bobojuice",
+  "homepage": "https://github.com/bobojuice/tunes-converter",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"tests/*.test.js\"",
+    "dist": "electron-builder --publish never"
+  },
+  "build": {
+    "appId": "io.github.bobojuice.tunesconverter",
+    "productName": "Tunes Converter",
+    "artifactName": "TunesConverter-${version}-${os}-${arch}.${ext}",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "extraFiles": [
+        {
+          "to": "bin",
+          "from": "resources-win/bin"
+        }
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "category": "AudioVideo",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "synopsis": "Convert music folders to MP3"
+    },
+    "afterPack": "build/afterPack.js",
+    "electronLanguages": [
+      "en-US"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  }
+}

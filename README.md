@@ -1,6 +1,6 @@
 # Tunes Converter
 
-Drop a folder of music in, press **START**, get tidy MP3s out. A small portable Windows app.
+Drop a folder of music in, press **START**, get tidy MP3s out. A small, portable app for **Windows, macOS and Linux**.
 
 **[Download the latest release](https://github.com/bobojuice/tunes-converter/releases/latest)** |
 **[Full instructions](docs/HOWTO.md)**
@@ -9,7 +9,7 @@ Drop a folder of music in, press **START**, get tidy MP3s out. A small portable 
 
 ## What it does
 
-- **MP3 at 320 kbps** (CBR, 44.1 kHz) by default, via ffmpeg/LAME. Bitrate and sample rate are configurable.
+- **MP3 at 320 kbps** (CBR, 44.1 kHz) by default, via ffmpeg/LAME. Bitrate and sample rate are one click away.
 - **Correct names:** files become `Artist - Title.mp3`. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title.mp3` instead of
   keeping only the last artist.
@@ -25,48 +25,39 @@ Drop a folder of music in, press **START**, get tidy MP3s out. A small portable 
 
 ## Install and use
 
-1. Download the zip from **Releases** and unzip it anywhere (a USB stick is fine).
-2. Add ffmpeg once: put `ffmpeg.exe` and `ffprobe.exe` in the `bin` folder, or run the optional
-   `Get-FFmpeg.ps1` helper to fetch them. ffmpeg is not included in the download.
-3. Double-click `TunesConverter.exe`, pick the songs and output folders, press **START**.
+| System | Download | Run |
+| ------ | -------- | --- |
+| **Windows** | `TunesConverter-<version>-win-x64.zip` | Unzip anywhere (a USB stick is fine) and double-click `Tunes Converter.exe`. |
+| **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg, drag the app anywhere, right-click it and choose **Open** the first time. |
+| **Linux** | `TunesConverter-<version>-linux-x64.AppImage` (or `.tar.gz`) | Make it executable and run it. |
 
-Keep the whole folder together. Requires Windows 10 or 11 (uses the built-in Windows PowerShell). Windows
-SmartScreen may warn about the unsigned `.exe` the first time: **More info > Run anyway**. To remove the app,
-delete its folder.
+Then add **ffmpeg** once (it is not included): on Windows press **Download ffmpeg** in the app, on macOS run
+`brew install ffmpeg`, on Linux install it with your package manager. The app tells you what to do if it can't
+find it.
 
-Step-by-step help, troubleshooting and everything else: **[docs/HOWTO.md](docs/HOWTO.md)**.
+Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
+**[docs/HOWTO.md](docs/HOWTO.md)**.
 
 ## Settings
 
-The two folders and the quality-check chips are saved automatically in `settings.json` next to the app. To change
-the rest, create or edit that file by hand (see `settings.example.json`) and reopen the app:
-
-| Key            | Default             | Allowed values                           |
-| -------------- | ------------------- | ---------------------------------------- |
-| `In`           | `Desktop\NewTunes`  | any folder                               |
-| `Out`          | `Desktop\converted` | any folder, different from `In`          |
-| `Bitrate`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
-| `SampleRate`   | `44100`             | `44100`, `48000`                         |
-| `QualityCheck` | `warn`              | `off`, `warn`, `skip`                    |
-| `MinKbps`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
-
-Each value is checked on its own; an invalid one falls back to its default.
-
-## Run without the window
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\TunesConverter.ps1 -NoGui -In "C:\Music\Incoming" -Out "C:\Music\MP3"
-```
+The two folders and the option chips (bitrate, sample rate, quality check, minimum) are saved automatically in
+`settings.json`. See [docs/HOWTO.md](docs/HOWTO.md#settings) for where it lives and what each value means.
 
 ## Build from source
 
-```powershell
-.\Build.ps1                    # compiles src\Launcher.cs -> TunesConverter.exe
-.\Make-Release.ps1             # builds, then zips dist\TunesConverter-vX.Y.Z.zip (no ffmpeg)
+Needs [Node.js](https://nodejs.org) 22 or newer.
+
+```bash
+npm ci
+npm start          # run the app
+npm test           # unit + integration tests (needs ffmpeg and ffprobe on your PATH or in ./bin)
+npm run dist       # package for the OS you are on, into ./dist
 ```
 
-The repository and release zips do not contain ffmpeg. For development, put `ffmpeg.exe` and `ffprobe.exe` in
-`bin\` (see `bin\README.txt`) or have them on your `PATH`.
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.0.0` collects them
+into a draft release.
+
+The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
 ## Status
 
@@ -76,9 +67,7 @@ maintaining it, so I can't promise fixes, features, or replies. It's provided as
 
 Issues are turned off. You're very welcome to fork it and make it your own. Hope it helps!
 
-## Notes
+## License
 
-- `TunesConverter.ps1` must stay ASCII-only (Windows PowerShell 5.1 reads scripts as ANSI).
-- Duplicate names in one batch are numbered in source order: `Name.mp3`, `Name (2).mp3`, ...
-- Licensing: this project is MIT (`LICENSE`). ffmpeg is a separate program with its own license (the common
-  Windows builds are GPL); see `THIRD-PARTY-NOTICES.md`.
+MIT (`LICENSE`). The app is built on Electron (MIT, includes Chromium). ffmpeg is a separate program with its own
+license (the common builds are GPL) and is not bundled; see `THIRD-PARTY-NOTICES.md`.
