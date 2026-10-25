@@ -153,7 +153,10 @@ function registerIpc() {
   ipcMain.handle('shell:openFolder', async (event, which) => {
     if (!trusted(event)) return false;
     const dir = folderToOpen(which, current());
-    return dir ? (await shell.openPath(dir)) === '' : false;
+    if (!dir) return false;
+    // Reveal only: openPath would launch a macOS .app bundle (a directory) through LaunchServices.
+    shell.showItemInFolder(dir);
+    return true;
   });
 
   ipcMain.handle('shell:openExternal', (event, url) => {
