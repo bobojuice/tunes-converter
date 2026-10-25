@@ -15,6 +15,22 @@ function samePath(a, b) {
   return process.platform === 'win32' || process.platform === 'darwin' ? x.toLowerCase() === y.toLowerCase() : x === y;
 }
 
+// Canonical form of a path: symlinks and junctions resolved. For a path that does not exist yet, the nearest
+// existing parent is resolved and the rest appended, so aliases of the same folder compare equal.
+function canon(p) {
+  const abs = path.resolve(p);
+  const tail = [];
+  let cur = abs;
+  for (;;) {
+    try { return path.join(fs.realpathSync.native(cur), ...tail.reverse()); } catch { /* go up one level */ }
+    const parent = path.dirname(cur);
+    if (parent === cur) return abs;
+    tail.push(path.basename(cur));
+    cur = parent;
+  }
+}
+const sameFolder = (a, b) => samePath(canon(a), canon(b));
+
 function summarise(c) {
   let s = `Done: ${c.OK + c.WARN} converted, ${c.SKIP} skipped, ${c.FAIL} failed.`;
   if (c.WARN) s += ` ${c.WARN} flagged as low quality.`;
@@ -37,7 +53,7 @@ function scanFolder(dir, { recurse, skipDir }) {
     for (const e of entries) {
       const full = path.join(current, e.name);
       if (e.isFile() && EXTENSIONS.has(path.extname(e.name).toLowerCase())) found.push({ full, rel });
-      else if (recurse && e.isDirectory() && depth < MAX_DEPTH && !(skipDir && samePath(full, skipDir))) walk(full, path.join(rel, e.name), depth + 1);
+      else if (recurse && e.isDirectory() && depth < MAX_DEPTH && !(skipDir && sameFolder(full, skipDir))) walk(full, path.join(rel, e.name), depth + 1);
     }
   };
   walk(dir, '', 0);
@@ -48,10 +64,11 @@ function scanFolder(dir, { recurse, skipDir }) {
 async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, inputs }) {
   const message = (text, level = 'info') => onEvent({ type: 'message', text, level });
   if (!tools) { message('ERROR: ffmpeg not found. Put ffmpeg and ffprobe in the bin folder or pick them in the app (see the instructions).', 'error'); return { ok: false }; }
-  const useInputs = Array.isArray(inputs) && inputs.length > 0;
+  const useInputs = Array.isArray(inputs); // an empty list is a selection with nothing in it, never "scan the folder"
+  if (useInputs && !inputs.length) { message('No dropped music files are selected. Drop files again or use the folder.', 'error'); return { ok: false }; }
   if (!useInputs && (!inDir || !fs.existsSync(inDir) || !fs.statSync(inDir).isDirectory())) { message(`ERROR: songs folder not found: ${inDir}`, 'error'); return { ok: false }; }
   if (!outDir) { message('ERROR: pick an output folder.', 'error'); return { ok: false }; }
-  if (!useInputs && samePath(inDir, outDir)) { message('ERROR: output folder must be different from the songs folder.', 'error'); return { ok: false }; }
+  if (!useInputs && sameFolder(inDir, outDir)) { message('ERROR: output folder must be different from the songs folder.', 'error'); return { ok: false }; }
   const fmt = FORMATS[settings.Format] || FORMATS.mp3;
   if (fmt !== FORMATS.mp3 && !(await hasEncoder(tools.ffmpeg, fmt.encoder))) {
     message(`ERROR: this ffmpeg cannot write ${fmt.label} (no ${fmt.encoder} encoder). Choose another format or install a full ffmpeg build.`, 'error');
@@ -66,6 +83,20 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
 
   const counts = { OK: 0, WARN: 0, FAKE: 0, LOW: 0, SKIP: 0, FAIL: 0 };
   const allocators = new Map(); // one per output folder, so the same title in two sub-folders is not a duplicate
+  const allocatorFor = (dir) => {
+    if (!allocators.has(dir)) allocators.set(dir, new NameAllocator());
+    return allocators.get(dir);
+  };
+  // A mirrored sub-folder such as "album.mp3" must not also be the name of a converted file in its parent.
+  for (const f of files) {
+    const parts = f.rel ? f.rel.split(path.sep) : [];
+    for (let k = 0; k < parts.length; k++) {
+      const parent = path.join(outDir, ...parts.slice(0, k));
+      const dirName = parts[k];
+      const stem = dirName.toLowerCase().endsWith(fmt.ext) ? dirName.slice(0, -fmt.ext.length) : null;
+      if (stem) allocatorFor(parent).reserve(stem);
+    }
+  }
   let stopped = false;
   onEvent({ type: 'progress', index: 0, total: files.length, file: '' });
 
@@ -74,13 +105,12 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     const file = files[i].full;
     const label = path.join(files[i].rel, path.basename(file));
     const target = files[i].rel ? path.join(outDir, files[i].rel) : outDir;
-    if (!allocators.has(target)) allocators.set(target, new NameAllocator());
     onEvent({ type: 'progress', index: i, total: files.length, file: label, text: `Converting ${i + 1} of ${files.length} - ${label}` });
     let res;
     try {
       if (files[i].rel) fs.mkdirSync(target, { recursive: true });
       res = await convertOne({
-        file, outDir: target, tools, settings, allocator: allocators.get(target), signal,
+        file, outDir: target, tools, settings, allocator: allocatorFor(target), signal,
         onStatus: (text) => onEvent({ type: 'progress', index: i, total: files.length, file: label, text })
       });
     } catch (err) {

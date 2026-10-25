@@ -149,6 +149,7 @@ function registerIpc() {
     if (!trusted(event)) return { ok: false };
     const ctrl = batchSlot.take(); // reserved before any await, so Stop works during preparation and starts cannot overlap
     if (!ctrl) return { ok: false };
+    const inputs = useDropped ? droppedFiles.slice() : undefined; // snapshot before any await; [] means "nothing selected"
     try {
       const s = settings.save(paths().settings, base(), { In: inDir, Out: outDir });
       const t = await toolState(s);
@@ -156,7 +157,7 @@ function registerIpc() {
       try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ }
       return await runBatch({
         inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal,
-        inputs: useDropped ? droppedFiles : undefined,
+        inputs,
         onEvent: (ev) => {
           if (ev.type === 'message') appendLog(ev.text);
           if (ev.type === 'result') appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`);

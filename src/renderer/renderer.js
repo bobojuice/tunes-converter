@@ -234,6 +234,7 @@
       } else if (r.kind === 'files') {
         setDropped(r.count);
       } else {
+        setDropped(0); // the app side has dropped its selection too
         addMessage('Nothing to convert in what was dropped (music files or a folder are expected).', 'error');
       }
     });

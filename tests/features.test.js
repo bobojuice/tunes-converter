@@ -24,8 +24,9 @@ function ff(args) {
 const sig = () => new AbortController().signal;
 const base = settings.defaults(tmp);
 
+let treeN = 0;
 function makeTree() {
-  const inDir = path.join(tmp, 'tree');
+  const inDir = path.join(tmp, `tree${++treeN}`);
   fs.mkdirSync(path.join(inDir, 'A'), { recursive: true });
   fs.mkdirSync(path.join(inDir, 'B'), { recursive: true });
   const meta = ['-metadata', 'artist=Same', '-metadata', 'title=Song'];
@@ -122,4 +123,64 @@ test('update: version comparison and release parsing', () => {
   assert.deepEqual(r, { ok: true, latest: '2.1.0', newer: true, url: 'https://github.com/bobojuice/tunes-converter/releases/tag/v2.1.0' });
   assert.equal(describe({ tag_name: 'v2.0.0', html_url: 'https://evil.example/x' }, '2.0.0').url, 'https://github.com/bobojuice/tunes-converter/releases');
   assert.equal(describe({}, '2.0.0').ok, false);
+});
+
+test('update: oversized, interrupted and silent servers settle instead of hanging', async () => {
+  const { fetchLatest } = require('../src/engine/update');
+  const http = require('http');
+  const serve = (handler) => new Promise((resolve) => {
+    const server = http.createServer(handler);
+    server.listen(0, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${server.address().port}/x` }));
+  });
+  const cases = [
+    ['oversized', (req, res) => { res.writeHead(200); res.write('x'.repeat(2_000_000)); /* never ends */ }],
+    ['interrupted', (req, res) => { res.writeHead(200, { 'Content-Length': 100 }); res.write('{'); res.destroy(); }],
+    ['silent', () => { /* never answers */ }]
+  ];
+  for (const [name, handler] of cases) {
+    const { server, url } = await serve(handler);
+    const r = await fetchLatest('2.0.0', { url, timeoutMs: 800 });
+    server.closeAllConnections();
+    server.close();
+    assert.equal(r.ok, false, name);
+  }
+  const { server, url } = await serve((req, res) => { res.writeHead(200); res.end(JSON.stringify({ tag_name: 'v9.0.0' })); });
+  assert.equal((await fetchLatest('2.0.0', { url })).newer, true);
+  server.close();
+});
+
+test('batch: an empty dropped selection never falls back to scanning the folder', { skip }, async () => {
+  const inDir = makeTree();
+  const out = path.join(tmp, 'o-empty');
+  const msgs = [];
+  const r = await runBatch({ inDir, outDir: out, inputs: [], settings: { ...base, QualityCheck: 'off' }, tools, signal: sig(), onEvent: (e) => msgs.push(e) });
+  assert.equal(r.ok, false);
+  assert.equal(fs.existsSync(out) ? fs.readdirSync(out).length : 0, 0);
+});
+
+test('batch: an output path that is an alias of a folder inside the songs folder is not rescanned', { skip }, async () => {
+  const inDir = makeTree();
+  const real = path.join(inDir, 'results');
+  fs.mkdirSync(real);
+  const alias = path.join(tmp, 'alias-to-results');
+  try { fs.symlinkSync(real, alias, 'junction'); } catch { return; } // junctions need no rights on Windows; skip where unsupported
+  const opts = { ...base, Format: 'mp3', QualityCheck: 'off', Recurse: true };
+  await runBatch({ inDir, outDir: alias, settings: opts, tools, signal: sig(), onEvent: () => {} });
+  const again = await runBatch({ inDir, outDir: alias, settings: opts, tools, signal: sig(), onEvent: () => {} });
+  assert.equal(again.counts.OK, 0);
+  assert.equal(again.counts.SKIP, 3);
+  assert.equal(fs.existsSync(path.join(real, 'results')), false, 'no nested copy of the output');
+});
+
+test('batch: a mirrored folder named like a converted file does not make that file "already exist"', { skip }, async () => {
+  const inDir = path.join(tmp, 'in-clash');
+  fs.mkdirSync(path.join(inDir, 'album.mp3'), { recursive: true });
+  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', path.join(inDir, 'album.flac')]); // untagged: output is album.mp3
+  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', path.join(inDir, 'album.mp3', 'track.flac')]);
+  const out = path.join(tmp, 'o-clash');
+  const r = await runBatch({ inDir, outDir: out, settings: { ...base, Format: 'mp3', QualityCheck: 'off', Recurse: true }, tools, signal: sig(), onEvent: () => {} });
+  assert.equal(r.counts.OK, 2, JSON.stringify(r.counts));
+  assert.ok(fs.statSync(path.join(out, 'album.mp3')).isDirectory());
+  assert.ok(fs.existsSync(path.join(out, 'album (2).mp3')));
+  assert.ok(fs.existsSync(path.join(out, 'album.mp3', 'track.mp3')));
 });

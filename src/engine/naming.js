@@ -38,6 +38,8 @@ function buildName({ artist, title, fallbackBase, outDir }) {
 // Hands out unique names for one batch: "Name", "Name (2)", ... Independent of any quality verdict.
 class NameAllocator {
   constructor() { this.used = new Set(); }
+  // Marks a name as taken without handing it out (e.g. a mirrored sub-folder with the same name).
+  reserve(name) { this.used.add(name.toLowerCase()); }
   allocate(name) {
     let candidate = name;
     let n = 1;

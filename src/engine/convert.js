@@ -54,7 +54,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const fmt = FORMATS[settings.Format] || FORMATS.mp3;
   const outName = `${name}${fmt.ext}`;
   const dest = path.join(outDir, outName);
-  if (fs.existsSync(dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
+  try {
+    if (fs.statSync(dest).isDirectory()) return { status: 'FAIL', name: baseName, note: `a folder named ${outName} is in the way` };
+    return { status: 'SKIP', name: outName, note: 'already exists' };
+  } catch { /* nothing there yet */ }
 
   let quality = null;
   if (settings.QualityCheck !== 'off') {
