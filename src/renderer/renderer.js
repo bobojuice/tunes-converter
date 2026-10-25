@@ -187,7 +187,7 @@
       }
     });
     $('stop').addEventListener('click', () => { $('status').textContent = 'Stopping...'; window.tc.stop(); });
-    $('openOut').addEventListener('click', () => window.tc.openFolder($('outDir').value));
+    $('openOut').addEventListener('click', () => window.tc.openFolder('out'));
     $('help').addEventListener('click', () => window.tc.openExternal(HELP_URL));
 
     $('locate').addEventListener('click', async () => { const ff = await window.tc.pickFfmpeg(); if (ff) applyFfmpeg(ff); });

@@ -8,7 +8,9 @@ const { runBatch } = require('./src/engine/batch');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
-let batchAbort = null;
+const { rendererSettingsChanges, folderToOpen, createSlot } = require('./src/engine/guards');
+
+const batchSlot = createSlot();
 let dlAbort = null;
 
 // Where settings and the log live: next to the app on Windows (portable zip), otherwise the user's app-data folder.
@@ -68,8 +70,9 @@ function registerIpc() {
   });
 
   ipcMain.handle('settings:update', (event, changes) => {
-    if (!trusted(event) || !changes || typeof changes !== 'object') return null;
-    return settings.save(paths().settings, base(), changes);
+    const safe = rendererSettingsChanges(changes);
+    if (!trusted(event) || !safe) return null;
+    return settings.save(paths().settings, base(), safe);
   });
 
   ipcMain.handle('dialog:pickFolder', async (event, { title, defaultPath } = {}) => {
@@ -119,14 +122,16 @@ function registerIpc() {
   });
 
   ipcMain.handle('batch:start', async (event, { inDir, outDir } = {}) => {
-    if (!trusted(event) || batchAbort) return { ok: false };
-    const s = settings.save(paths().settings, base(), { In: inDir, Out: outDir });
-    const t = await toolState(s);
-    batchAbort = new AbortController();
-    try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ }
+    if (!trusted(event)) return { ok: false };
+    const ctrl = batchSlot.take(); // reserved before any await, so Stop works during preparation and starts cannot overlap
+    if (!ctrl) return { ok: false };
     try {
+      const s = settings.save(paths().settings, base(), { In: inDir, Out: outDir });
+      const t = await toolState(s);
+      if (ctrl.signal.aborted) return { ok: false, cancelled: true };
+      try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ }
       return await runBatch({
-        inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: batchAbort.signal,
+        inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal,
         onEvent: (ev) => {
           if (ev.type === 'message') appendLog(ev.text);
           if (ev.type === 'result') appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`);
@@ -134,19 +139,21 @@ function registerIpc() {
         }
       });
     } finally {
-      batchAbort = null;
+      batchSlot.release(ctrl);
     }
   });
 
   ipcMain.handle('batch:stop', (event) => {
     if (!trusted(event)) return;
-    if (batchAbort) batchAbort.abort();
+    batchSlot.abort();
     if (dlAbort) dlAbort.abort();
   });
 
-  ipcMain.handle('shell:openFolder', async (event, folder) => {
-    if (!trusted(event) || typeof folder !== 'string' || !fs.existsSync(folder)) return false;
-    return (await shell.openPath(folder)) === '';
+  // The window names a saved folder ('in' or 'out'); it never supplies a path, and only a directory is opened.
+  ipcMain.handle('shell:openFolder', async (event, which) => {
+    if (!trusted(event)) return false;
+    const dir = folderToOpen(which, current());
+    return dir ? (await shell.openPath(dir)) === '' : false;
   });
 
   ipcMain.handle('shell:openExternal', (event, url) => {
@@ -186,9 +193,8 @@ function createWindow() {
 }
 
 function start() {
-  // Linux AppImage/tar builds cannot rely on a SUID sandbox helper. The app only ever shows its own local page
-  // (navigation and new windows are blocked), so running without Chromium's OS sandbox is acceptable there.
-  if (process.platform === 'linux' && app.isPackaged) app.commandLine.appendSwitch('no-sandbox');
+  // The OS sandbox stays on everywhere. If a Linux system cannot start it, the user can launch with --no-sandbox
+  // (see docs/HOWTO.md troubleshooting).
   if (process.platform === 'darwin') {
     Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]));
   } else {
@@ -196,7 +202,7 @@ function start() {
   }
   registerIpc();
   app.on('window-all-closed', () => {
-    if (batchAbort) batchAbort.abort();
+    batchSlot.abort();
     app.quit();
   });
   return app.whenReady().then(() => {

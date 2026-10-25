@@ -119,7 +119,7 @@ function analyse(raw, sampleRate, channels) {
   const reference = refSum / (r1 - r0 + 1);
   const wanted = reference - 60;
   const clamped = wanted < -118;
-  const threshold = Math.min(-90, Math.max(-118, wanted));
+  const threshold = Math.max(-118, wanted); // no upper cap: the threshold follows the track's own level
   for (let b = BINS - 1; b > 0; b--) {
     if (sm[b] > threshold) return { cutoff: (b * sampleRate) / N, clamped };
   }

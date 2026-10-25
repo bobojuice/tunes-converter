@@ -37,10 +37,11 @@ fully portable.
 
 1. Download the `.dmg` that matches your Mac: **`mac-arm64`** for Apple Silicon (M1 and newer), **`mac-x64`** for Intel.
 2. Open it and drag **Tunes Converter** to Applications (or anywhere else; it also runs from a folder or USB drive).
-3. The first time, **right-click the app and choose Open**, then **Open** again. The app is not signed with a paid
-   Apple developer certificate, so a plain double-click is blocked the first time.
+3. The app is not signed with a paid Apple developer certificate, so macOS blocks it the first time. Try to open it
+   once, then go to **System Settings > Privacy & Security**, scroll to the message about "Tunes Converter" and click
+   **Open Anyway** (enter your password). (On recent macOS, right-click > Open no longer bypasses this.)
 
-If macOS says the app is "damaged" or still refuses to open, remove the download flag once in Terminal:
+If macOS says the app is "damaged" or the button does not appear, remove the download flag once in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Tunes Converter.app"
@@ -166,7 +167,7 @@ Settings are saved automatically in `settings.json`:
 | **macOS** | `~/Library/Application Support/Tunes Converter/` |
 | **Linux** | `~/.config/Tunes Converter/` |
 
-The footer of the window shows the exact folder. You can edit the file by hand (see `settings.example.json`) while
+The footer of the window shows the exact folder. You can edit the file by hand (an example, `settings.example.json`, is in the [repository](https://github.com/bobojuice/tunes-converter); it is not included in the download) while
 the app is closed:
 
 | Key            | Default             | Allowed values                           |
@@ -189,7 +190,8 @@ in `last-run.log` in the same folder.
 | ------- | ----------- |
 | Yellow "ffmpeg not found" box | Follow [Get ffmpeg](#get-ffmpeg-one-time). Make sure `ffmpeg` and `ffprobe` are both in the same folder. |
 | "This ffmpeg cannot write MP3" | That build has no MP3 encoder (`libmp3lame`). Install a full build (Homebrew, your distro, or the gyan.dev build on Windows). |
-| macOS: "cannot be opened" / "damaged" | Right-click the app, **Open**. Or run the `xattr` command in [Install](#macos). |
+| macOS: "cannot be opened" / "damaged" | **System Settings > Privacy & Security > Open Anyway**, or run the `xattr` command in [Install](#macos). |
+| Linux: window never appears / "sandbox" error | The app keeps Chromium's sandbox on. If your system cannot start it (some containers, restricted user namespaces), run once with `--no-sandbox` as a last resort. |
 | Windows SmartScreen warning | The app is unsigned. **More info > Run anyway**. |
 | Linux: AppImage will not start | Install `libfuse2`, or run with `--appimage-extract-and-run`. |
 | "No music files found" | Files must be directly inside the songs folder (not in sub-folders) and have a supported extension. |

@@ -11,13 +11,28 @@ const { run } = require('./proc');
 
 const DEFAULT_URL = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
 
-function get(url, signal, redirects = 5) {
+// Every hop (first request and each redirect) must be https on an approved host. Plain http is allowed only for a
+// loopback address, and only when the URL was overridden for tests (TC_FFMPEG_URL or the `url` option).
+const ALLOWED_HOSTS = ['www.gyan.dev', 'gyan.dev', 'github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'];
+const LOOPBACK = ['127.0.0.1', 'localhost', '[::1]'];
+
+function checkUrl(url, allowLoopback) {
+  let u;
+  try { u = new URL(url); } catch { throw new Error('Blocked: invalid download address.'); }
+  if (u.protocol === 'https:' && ALLOWED_HOSTS.includes(u.hostname)) return u;
+  if (allowLoopback && u.protocol === 'http:' && LOOPBACK.includes(u.hostname)) return u;
+  throw new Error(`Blocked: ${u.protocol}//${u.hostname} is not an approved download source.`);
+}
+
+function get(url, signal, allowLoopback, redirects = 5) {
   return new Promise((resolve, reject) => {
-    const mod = url.startsWith('https:') ? https : http;
-    const req = mod.get(url, { headers: { 'User-Agent': 'TunesConverter' } }, (res) => {
+    let u;
+    try { u = checkUrl(url, allowLoopback); } catch (err) { reject(err); return; }
+    const mod = u.protocol === 'https:' ? https : http;
+    const req = mod.get(u, { headers: { 'User-Agent': 'TunesConverter' } }, (res) => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
         res.resume();
-        resolve(get(new URL(res.headers.location, url).toString(), signal, redirects - 1));
+        resolve(get(new URL(res.headers.location, u).toString(), signal, allowLoopback, redirects - 1));
         return;
       }
       if (res.statusCode !== 200) { res.resume(); reject(new Error(`Download failed (HTTP ${res.statusCode}).`)); return; }
@@ -28,15 +43,15 @@ function get(url, signal, redirects = 5) {
   });
 }
 
-async function fetchText(url, signal) {
-  const res = await get(url, signal);
+async function fetchText(url, signal, allowLoopback) {
+  const res = await get(url, signal, allowLoopback);
   const chunks = [];
   for await (const c of res) chunks.push(c);
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function fetchToFile(url, dest, onProgress, signal) {
-  const res = await get(url, signal);
+async function fetchToFile(url, dest, onProgress, signal, allowLoopback) {
+  const res = await get(url, signal, allowLoopback);
   const total = Number(res.headers['content-length']) || 0;
   let done = 0;
   const hash = crypto.createHash('sha256');
@@ -51,6 +66,13 @@ async function fetchToFile(url, dest, onProgress, signal) {
   return hash.digest('hex');
 }
 
+function entriesAreSafe(listing) {
+  return String(listing).split(/\r?\n/).filter(Boolean).every((n) => {
+    const name = n.replace(/\\/g, '/');
+    return !name.startsWith('/') && !/^[a-zA-Z]:/.test(name) && !name.split('/').includes('..');
+  });
+}
+
 function findFile(dir, name) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -61,12 +83,19 @@ function findFile(dir, name) {
 }
 
 async function downloadFfmpeg({ destDir, url = process.env.TC_FFMPEG_URL || DEFAULT_URL, onProgress, signal }) {
+  const allowLoopback = url !== DEFAULT_URL;
+  checkUrl(url, allowLoopback);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tunesconverter-ffmpeg-'));
   try {
     const zip = path.join(tmp, 'ffmpeg.zip');
-    const actual = await fetchToFile(url, zip, onProgress, signal);
-    const expected = (await fetchText(`${url}.sha256`, signal)).trim().split(/\s+/)[0].toLowerCase();
+    const actual = await fetchToFile(url, zip, onProgress, signal, allowLoopback);
+    const expected = (await fetchText(`${url}.sha256`, signal, allowLoopback)).trim().split(/\s+/)[0].toLowerCase();
     if (actual.toLowerCase() !== expected) throw new Error('Checksum mismatch. The download was discarded.');
+
+    // Refuse archives with absolute or parent-directory entry names before unpacking anything.
+    const list = await run('tar', ['-tf', zip], { signal });
+    if (list.code !== 0) throw new Error(`Could not read the download: ${list.stderr.trim() || 'tar failed'}`);
+    if (!entriesAreSafe(list.stdout)) throw new Error('The download contains unsafe file names and was discarded.');
 
     const extractDir = path.join(tmp, 'x');
     fs.mkdirSync(extractDir);
@@ -85,4 +114,4 @@ async function downloadFfmpeg({ destDir, url = process.env.TC_FFMPEG_URL || DEFA
   }
 }
 
-module.exports = { downloadFfmpeg, DEFAULT_URL };
+module.exports = { downloadFfmpeg, DEFAULT_URL, checkUrl, entriesAreSafe };
