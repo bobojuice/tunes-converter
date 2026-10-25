@@ -18,7 +18,27 @@
       <h1>Tunes Converter</h1>
       <p class="sub">Pick a folder, press start, get tidy music files.</p>
     </div>
+    <button id="gear" class="btn ghost gear" type="button" aria-expanded="false" aria-controls="panel" title="Settings">Settings</button>
   </header>
+
+  <section id="panel" class="card panel" hidden aria-label="Settings">
+    <div class="grid">
+      <label for="setFormat">Output format</label>
+      <select id="setFormat" data-key="Format"><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="opus">Opus</option></select>
+      <label for="setBitrate">Bitrate</label>
+      <select id="setBitrate" data-key="Bitrate" data-number><option>128</option><option>160</option><option>192</option><option>224</option><option>256</option><option>320</option></select>
+      <label for="setRate">Sample rate</label>
+      <select id="setRate" data-key="SampleRate" data-number><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select>
+      <label for="setQuality">Quality check</label>
+      <select id="setQuality" data-key="QualityCheck"><option value="off">Off (fastest)</option><option value="warn">Warn about low quality</option><option value="skip">Skip files below the minimum</option></select>
+      <label for="setMin">Minimum quality</label>
+      <select id="setMin" data-key="MinKbps" data-number><option>128</option><option>160</option><option>192</option><option>224</option><option>256</option><option>320</option></select>
+    </div>
+    <label class="check"><input type="checkbox" data-key="Recurse"> Include sub-folders (keeps the same folder layout)</label>
+    <label class="check"><input type="checkbox" data-key="CoverArt"> Keep cover art</label>
+    <label class="check"><input type="checkbox" data-key="JoinArtists"> Full artist names ("A;B" becomes "A, B")</label>
+    <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
+  </section>
 
   <section id="banner" class="banner" hidden>
     <h2 id="bannerTitle">ffmpeg not found</h2>
@@ -56,8 +76,8 @@
     <button id="chipRate" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
     <button id="chipFormat" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
     <button id="chipRecurse" class="chip toggle" type="button"><span class="t"></span></button>
-    <span class="chip"><span class="dot"></span>Full artist names</span>
-    <span class="chip"><span class="dot"></span>Cover art kept</span>
+    <span id="chipJoin" class="chip"><span class="dot"></span>Full artist names</span>
+    <span id="chipCover" class="chip"><span class="dot"></span>Cover art kept</span>
     <span class="chip"><span class="dot"></span>Originals untouched</span>
   </div>
   <div class="chips">

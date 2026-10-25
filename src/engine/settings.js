@@ -17,6 +17,9 @@ function defaults(desktopDir) {
     MinKbps: 320,
     Format: 'mp3',
     Recurse: false,
+    CoverArt: true,
+    JoinArtists: true,
+    OpenWhenDone: false,
     WinW: 820,
     WinH: 840,
     FfmpegDir: ''
@@ -34,7 +37,9 @@ function merge(base, raw) {
   if (MODES.includes(raw.QualityCheck)) s.QualityCheck = raw.QualityCheck;
   if (BITRATES.includes(Number(raw.MinKbps))) s.MinKbps = Number(raw.MinKbps);
   if (FORMAT_KEYS.includes(raw.Format)) s.Format = raw.Format;
-  if (typeof raw.Recurse === 'boolean') s.Recurse = raw.Recurse;
+  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'OpenWhenDone']) {
+    if (typeof raw[k] === 'boolean') s[k] = raw[k];
+  }
   for (const k of ['WinW', 'WinH']) {
     const n = Number(raw[k]);
     if (Number.isInteger(n) && n >= 400 && n <= 10000) s[k] = n;

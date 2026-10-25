@@ -124,3 +124,13 @@ button.toggle:disabled { cursor: default; opacity: 0.6; }
 .drop-hint[hidden] { display: none; }
 #chipRecurse[data-on="true"] .t { color: var(--accent); }
 #updateMsg { color: var(--chip-ink); }
+
+.gear { width: auto; margin-left: auto; padding: 0 14px; height: 36px; }
+.panel[hidden] { display: none; }
+.panel { display: flex; flex-direction: column; gap: 10px; }
+.panel .grid { display: grid; grid-template-columns: 160px 1fr; gap: 10px 14px; align-items: center; }
+.panel label { font-size: 13px; color: var(--chip-ink); }
+.panel select { height: 36px; background: var(--field); color: var(--ink); border: 1px solid var(--field-border); border-radius: 6px; padding: 0 10px; font: inherit; font-size: 14px; }
+.panel select:disabled { opacity: 0.55; }
+.panel .check { display: flex; align-items: center; gap: 10px; }
+.chip.off { opacity: 0.45; }

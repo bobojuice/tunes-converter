@@ -92,6 +92,8 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 5. **Stop** ends the batch after cancelling the current file cleanly (no half-written files are left behind).
 6. **Open output folder** jumps to the results.
 
+**Settings:** the **Settings** button (top right) has every option, including keeping cover art, full artist names and opening the folder when finished.
+
 **Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click the format chip to choose MP3, AAC (M4A), FLAC or Opus (Opus tops out at 256 kbps); click **Subfolders** to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
 
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
@@ -188,6 +190,9 @@ the app is closed:
 | `QualityCheck` | `warn`              | `off`, `warn`, `skip`                    |
 | `MinKbps`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
 | `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `opus` (click the format chip) |
+| `CoverArt`     | `true`              | `false` drops embedded cover art |
+| `JoinArtists`  | `true`              | `false` leaves multi-artist tags as they are |
+| `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
 | `WinW`, `WinH` | `820`, `840`        | window size, saved when you close the app |
 | `FfmpegDir`    | empty               | folder containing `ffmpeg` and `ffprobe` (set by **Locate ffmpeg...**) |

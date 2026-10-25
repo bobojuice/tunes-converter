@@ -31,6 +31,15 @@
 
   function renderChips() {
     const s = settings();
+    for (const el of document.querySelectorAll('#panel [data-key]')) {
+      const v = s[el.dataset.key];
+      if (el.type === 'checkbox') el.checked = Boolean(v);
+      else el.value = String(v);
+    }
+    $('chipCover').classList.toggle('off', !s.CoverArt);
+    $('chipCover').lastChild.textContent = s.CoverArt ? 'Cover art kept' : 'Cover art removed';
+    $('chipJoin').classList.toggle('off', !s.JoinArtists);
+    $('chipJoin').lastChild.textContent = s.JoinArtists ? 'Full artist names' : 'Artist tags as is';
     $('chipFormat').querySelector('.t').textContent = FORMATS[s.Format];
     $('chipFormat').title = 'Output format. Click to change.';
     $('chipRecurse').querySelector('.t').textContent = s.Recurse ? 'Subfolders: included' : 'Subfolders: off';
@@ -53,6 +62,7 @@
     $('start').disabled = value;
     $('start').textContent = value ? 'Converting...' : ranOnce ? 'RUN AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
+    for (const el of document.querySelectorAll('#panel [data-key]')) el.disabled = value;
     for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipFormat', 'chipRecurse', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
   }
 
@@ -120,6 +130,7 @@
       addResult(ev);
     } else if (ev.type === 'done') {
       $('status').textContent = ev.summary;
+      if (settings().OpenWhenDone && !ev.stopped) window.tc.openFolder('out');
     }
   }
 
@@ -196,6 +207,17 @@
 
     const cycle = (list, value) => list[(list.indexOf(value) + 1) % list.length];
     $('chipBitrate').addEventListener('click', () => save({ Bitrate: cycle(BITRATES.slice().reverse(), settings().Bitrate) }));
+    $('gear').addEventListener('click', () => {
+      const open = $('panel').hidden;
+      $('panel').hidden = !open;
+      $('gear').setAttribute('aria-expanded', String(open));
+    });
+    for (const el of document.querySelectorAll('#panel [data-key]')) {
+      el.addEventListener('change', () => {
+        const value = el.type === 'checkbox' ? el.checked : el.hasAttribute('data-number') ? Number(el.value) : el.value;
+        save({ [el.dataset.key]: value });
+      });
+    }
     $('chipFormat').addEventListener('click', () => save({ Format: cycle(FORMAT_ORDER, settings().Format) }));
     $('chipRecurse').addEventListener('click', () => save({ Recurse: !settings().Recurse }));
     $('chipRate').addEventListener('click', () => save({ SampleRate: settings().SampleRate === 44100 ? 48000 : 44100 }));

@@ -45,6 +45,32 @@ test('settings: new keys are validated', () => {
   assert.equal(settings.merge(s, { Format: 'flac', Recurse: true }).Format, 'flac');
 });
 
+test('settings: toggles are validated', () => {
+  const s = settings.merge(settings.defaults(tmp), { CoverArt: 'no', JoinArtists: false, OpenWhenDone: true });
+  assert.equal(s.CoverArt, true);
+  assert.equal(s.JoinArtists, false);
+  assert.equal(s.OpenWhenDone, true);
+});
+
+test('batch: cover art can be dropped and artist tags left as they are', { skip }, async () => {
+  const inDir = path.join(tmp, 'in-toggles');
+  fs.mkdirSync(inDir);
+  const art = path.join(tmp, 'art.png');
+  ff(['-f', 'lavfi', '-i', 'color=c=red:s=64x64', '-frames:v', '1', art]);
+  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', '-i', art, '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-c:v', 'copy',
+    '-metadata', 'artist=A;B', '-metadata', 'title=T', path.join(inDir, 's.mp3')]);
+  const streams = (f) => spawnSync(tools.ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', f], { encoding: 'utf8' }).stdout;
+  const withArt = path.join(tmp, 'o-art');
+  await runBatch({ inDir, outDir: withArt, settings: { ...base, QualityCheck: 'off' }, tools, signal: sig(), onEvent: () => {} });
+  assert.match(streams(path.join(withArt, 'A, B - T.mp3')), /video/);
+  const noArt = path.join(tmp, 'o-noart');
+  await runBatch({ inDir, outDir: noArt, settings: { ...base, QualityCheck: 'off', CoverArt: false, JoinArtists: false }, tools, signal: sig(), onEvent: () => {} });
+  const names = fs.readdirSync(noArt);
+  assert.equal(names.length, 1);
+  assert.equal(names[0], 'A;B - T.mp3');
+  assert.doesNotMatch(streams(path.join(noArt, names[0])), /video/);
+});
+
 test('batch: sub-folders are mirrored and not counted as duplicates of each other', { skip }, async () => {
   const inDir = makeTree();
   const off = [];

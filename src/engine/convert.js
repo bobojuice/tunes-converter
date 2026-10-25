@@ -43,8 +43,11 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   if (!audio) return { status: 'FAIL', name: baseName, note: 'no audio stream' };
 
   const tagSets = [info.format && info.format.tags, audio.tags];
-  const artist = joinArtists(pickTag(tagSets, 'artist'));
-  const albumArtist = joinArtists(pickTag(tagSets, 'album_artist'));
+  // "A;B" (several artists) becomes "A, B" unless the user turned that off; then the tags are left exactly as they are.
+  const join = settings.JoinArtists === false ? ((v) => v) : joinArtists;
+  const artist = join(pickTag(tagSets, 'artist'));
+  const albumArtist = join(pickTag(tagSets, 'album_artist'));
+  const keepCover = settings.CoverArt !== false;
   const title = pickTag(tagSets, 'title');
 
   const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir });
@@ -73,7 +76,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const isMp3 = fmt === FORMATS.mp3 && audio.codec_name === 'mp3'; // an MP3 stays as is (no second lossy pass)
   const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
   const args = ['-v', 'error', '-y', '-i', file, '-map', '0:a:0'];
-  if (fmt !== FORMATS.opus) args.push('-map', '0:v?'); // cover art (the Ogg/Opus container takes none this way)
+  if (fmt !== FORMATS.opus && keepCover) args.push('-map', '0:v?'); // cover art (the Ogg/Opus container takes none this way)
   args.push('-map_metadata', '0');
   if (isMp3) {
     args.push('-c', 'copy');
@@ -81,11 +84,11 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     args.push('-c:a', fmt.encoder);
     if (fmt.lossy) args.push('-b:a', `${kbps}k`);
     if (fmt !== FORMATS.opus && fmt !== FORMATS.flac) args.push('-ar', String(settings.SampleRate));
-    if (fmt !== FORMATS.opus) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
+    if (fmt !== FORMATS.opus && keepCover) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
   }
   if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
-  if (artist) args.push('-metadata', `artist=${artist}`);
-  if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
+  if (artist && settings.JoinArtists !== false) args.push('-metadata', `artist=${artist}`);
+  if (albumArtist && settings.JoinArtists !== false) args.push('-metadata', `album_artist=${albumArtist}`);
   args.push('-f', fmt.muxer, part);
 
   try {
