@@ -57,7 +57,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Tunes Converter",
-      "artifactName": "TunesConverter-${version}-win-x64-setup.${ext}"
+      "artifactName": "TunesConverter-${version}-win-x64-setup.${ext}",
+      "allowElevation": false
     },
     "mac": {
       "category": "public.app-category.music",

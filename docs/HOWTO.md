@@ -26,7 +26,7 @@ Download the file for your system from the project's **Releases** page.
 ### Windows (10 or 11)
 
 **Installer (easiest):** download `TunesConverter-<version>-win-x64-setup.exe` and run it. It installs for your user
-only (no admin rights), adds a Start menu entry and a Desktop shortcut, and can be removed from Windows
+only (it never asks for administrator rights), adds a Start menu entry and a Desktop shortcut, and can be removed from Windows
 **Settings > Apps**. Your settings are kept in `%APPDATA%\Tunes Converter` and survive updates.
 
 **Portable (USB stick, no install):**
