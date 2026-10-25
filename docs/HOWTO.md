@@ -50,7 +50,7 @@ xattr -dr com.apple.quarantine "/Applications/Tunes Converter.app"
 
 Pick one:
 
-- **AppImage:** download `TunesConverter-<version>-linux-x64.AppImage`, then
+- **AppImage:** download `TunesConverter-<version>-linux-x86_64.AppImage`, then
   ```bash
   chmod +x TunesConverter-*.AppImage
   ./TunesConverter-*.AppImage

@@ -29,7 +29,7 @@ Drop a folder of music in, press **START**, get tidy MP3s out. A small, portable
 | ------ | -------- | --- |
 | **Windows** | `TunesConverter-<version>-win-x64.zip` | Unzip anywhere (a USB stick is fine) and double-click `Tunes Converter.exe`. |
 | **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg, drag the app anywhere, right-click it and choose **Open** the first time. |
-| **Linux** | `TunesConverter-<version>-linux-x64.AppImage` (or `.tar.gz`) | Make it executable and run it. |
+| **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. |
 
 Then add **ffmpeg** once (it is not included): on Windows press **Download ffmpeg** in the app, on macOS run
 `brew install ffmpeg`, on Linux install it with your package manager. The app tells you what to do if it can't
