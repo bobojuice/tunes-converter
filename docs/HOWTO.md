@@ -25,13 +25,20 @@ Download the file for your system from the project's **Releases** page.
 
 ### Windows (10 or 11)
 
+**Installer (easiest):** download `TunesConverter-<version>-win-x64-setup.exe` and run it. It installs for your user
+only (no admin rights), adds a Start menu entry and a Desktop shortcut, and can be removed from Windows
+**Settings > Apps**. Your settings are kept in `%APPDATA%\Tunes Converter` and survive updates.
+
+**Portable (USB stick, no install):**
+
 1. Download `TunesConverter-<version>-win-x64.zip`.
 2. Right-click it, **Extract All...**, and pick any folder (a USB stick works too).
 3. Double-click **`Tunes Converter.exe`**.
 
-Keep the whole folder together. Windows SmartScreen may say "Windows protected your PC" because the app is not
-code-signed: click **More info**, then **Run anyway**. Your settings are saved next to the app, so the folder is
-fully portable.
+Keep the whole folder together. Your settings are saved next to the app, so the folder is fully portable.
+
+Windows SmartScreen may say "Windows protected your PC" because the app is not code-signed: click **More info**, then
+**Run anyway**.
 
 ### macOS
 
@@ -68,8 +75,8 @@ it once. When it is missing, the app shows a yellow box that tells you exactly w
 | System | How |
 | ------ | --- |
 | **Windows** | Press **Download ffmpeg** in the yellow box (about 100 MB from <https://www.gyan.dev/ffmpeg/builds/>, checked against the checksum published there; nothing is installed). Or put `ffmpeg.exe` and `ffprobe.exe` in the `bin` folder next to the app. |
-| **macOS** | Install [Homebrew](https://brew.sh), then run `brew install ffmpeg` in Terminal. Press **Check again**. |
-| **Linux** | `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora, needs RPM Fusion), or `sudo pacman -S ffmpeg` (Arch). Press **Check again**. |
+| **macOS** | Install [Homebrew](https://brew.sh), then run `brew install ffmpeg` in Terminal. The app's yellow box has **Get Homebrew** and **Copy command** buttons: paste the command into the Terminal app (Cmd+Space, type Terminal), press Return, then press **Check again**. |
+| **Linux** | `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora, needs RPM Fusion), or `sudo pacman -S ffmpeg` (Arch). The app's yellow box has **Get Homebrew** and **Copy command** buttons: paste the command into the Terminal app (Cmd+Space, type Terminal), press Return, then press **Check again**. |
 
 Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the folder that contains `ffmpeg` and
 `ffprobe`. The app also checks its own `bin` folder and your `PATH` (and the usual Homebrew folders on macOS).

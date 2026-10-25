@@ -35,6 +35,12 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "extraFiles": [
@@ -43,6 +49,15 @@
           "from": "resources-win/bin"
         }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tunes Converter",
+      "artifactName": "TunesConverter-${version}-win-x64-setup.${ext}"
     },
     "mac": {
       "category": "public.app-category.music",

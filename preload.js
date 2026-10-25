@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('tc', {
   pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
   dropPaths: (list) => ipcRenderer.invoke('drop:paths', list),
   clearDropped: () => ipcRenderer.invoke('drop:clear'),
+  copyInstallCommand: () => ipcRenderer.invoke('app:copyInstallCommand'),
   checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
   stop: () => ipcRenderer.invoke('batch:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),

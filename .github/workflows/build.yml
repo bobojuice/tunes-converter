@@ -48,6 +48,7 @@ jobs:
           name: tunes-converter-${{ matrix.name }}
           path: |
             dist/*.zip
+            dist/*.exe
             dist/*.dmg
             dist/*.AppImage
             dist/*.tar.gz

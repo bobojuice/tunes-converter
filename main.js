@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const settings = require('./src/engine/settings');
@@ -19,8 +19,11 @@ let dlAbort = null;
 // Where settings and the log live: next to the app on Windows (portable zip), otherwise the user's app-data folder.
 function dataDir() {
   if (process.env.TC_DATA_DIR) return process.env.TC_DATA_DIR;
-  if (app.isPackaged && process.platform === 'win32') {
-    const beside = path.dirname(process.execPath);
+  // The installer puts an uninstaller beside the exe; an installed copy keeps its data in app data so it survives
+  // updates and uninstalls. The unzipped (portable) copy has no uninstaller and keeps its data in its own folder.
+  const beside = path.dirname(process.execPath);
+  const installed = fs.existsSync(path.join(beside, `Uninstall ${app.getName()}.exe`));
+  if (app.isPackaged && process.platform === 'win32' && !installed) {
     try {
       const probe = path.join(beside, `.write-test-${process.pid}`);
       fs.writeFileSync(probe, '');
@@ -67,6 +70,7 @@ function registerIpc() {
       settings: s,
       ffmpeg: { found: Boolean(t.tools), mp3: t.encoder, path: t.tools ? t.tools.ffmpeg : '' },
       platform: process.platform,
+      hasBrew: ['/opt/homebrew/bin/brew', '/usr/local/bin/brew'].some((b) => fs.existsSync(b)),
       version: require('./package.json').version,
       dataDir: paths().dir
     };
@@ -138,6 +142,13 @@ function registerIpc() {
 
   ipcMain.handle('drop:clear', (event) => {
     if (trusted(event)) droppedFiles = [];
+  });
+
+  // Only ever copies the one fixed command shown in the ffmpeg banner, never text from the window.
+  ipcMain.handle('app:copyInstallCommand', (event) => {
+    if (!trusted(event)) return false;
+    clipboard.writeText('brew install ffmpeg');
+    return true;
   });
 
   ipcMain.handle('app:checkUpdate', async (event) => {

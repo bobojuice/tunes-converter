@@ -132,6 +132,8 @@
   // ---- ffmpeg banner ----
   function renderBanner(ff) {
     const banner = $('banner');
+    $('copyCmd').hidden = true;
+    $('brewSite').hidden = true;
     if (ff.found && ff.mp3) { banner.hidden = true; return; }
     banner.hidden = false;
     const p = state.platform;
@@ -144,9 +146,15 @@
     } else if (p === 'win32') {
       $('bannerText').textContent = 'Tunes Converter needs ffmpeg and ffprobe. Download them with one click (about 100 MB, checked against a published checksum), or put ffmpeg.exe and ffprobe.exe in a "bin" folder next to this app.';
     } else if (p === 'darwin') {
-      $('bannerText').textContent = 'Tunes Converter needs ffmpeg. With Homebrew (brew.sh), run this in Terminal, then press "Check again":';
       cmd.hidden = false;
       cmd.textContent = 'brew install ffmpeg';
+      $('copyCmd').hidden = false;
+      if (state.hasBrew) {
+        $('bannerText').textContent = 'Tunes Converter needs ffmpeg. Click "Copy command", open the Terminal app (Spotlight: press Cmd+Space, type Terminal), paste with Cmd+V, press Return, wait for it to finish, then click "Check again".';
+      } else {
+        $('brewSite').hidden = false;
+        $('bannerText').textContent = 'Tunes Converter needs ffmpeg, and the easiest way to get it on a Mac is Homebrew. Click "Get Homebrew" and follow the one-line install on that page. Then click "Copy command", paste it into the Terminal app, press Return, and click "Check again".';
+      }
     } else {
       $('bannerText').textContent = 'Tunes Converter needs ffmpeg. Install it with your package manager, then press "Check again":';
       cmd.hidden = false;
@@ -257,6 +265,10 @@
     $('help').addEventListener('click', () => window.tc.openExternal(HELP_URL));
 
     $('locate').addEventListener('click', async () => { const ff = await window.tc.pickFfmpeg(); if (ff) applyFfmpeg(ff); });
+    $('copyCmd').addEventListener('click', async () => {
+      $('dlStatus').textContent = (await window.tc.copyInstallCommand()) ? 'Copied.' : 'Could not copy; select the text above instead.';
+    });
+    $('brewSite').addEventListener('click', () => window.tc.openExternal('https://brew.sh/'));
     $('recheck').addEventListener('click', async () => applyFfmpeg(await window.tc.recheckFfmpeg()));
     $('download').addEventListener('click', async () => {
       downloading = true;
