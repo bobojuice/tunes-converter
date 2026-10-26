@@ -29,7 +29,7 @@ Download the file for your system from the project's **Releases** page.
 only (it never asks for administrator rights), adds a Start menu entry and a Desktop shortcut, and can be removed from Windows
 **Settings > Apps**. Your settings are kept in `%APPDATA%\Tunes Converter` and survive updates.
 
-**No install (zip):**
+**Zip (just unzip and run, no installer):**
 
 1. Download `TunesConverter-<version>-win-x64.zip`.
 2. Right-click it, **Extract All...**, and pick any folder (a USB stick works too).
