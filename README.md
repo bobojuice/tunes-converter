@@ -18,22 +18,22 @@ MP3 · AAC · FLAC · WAV · Opus — with correct names, tags and an optional f
 
 ## ✨ What it does
 
-- 🎚️ **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV or Opus**.
-- 🎧 **Made for DJs:** WAV and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
+- **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV or Opus**.
+- **Made for DJs:** WAV and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
   **32-bit float** are converted down to the depth you choose, dithered at 16-bit.
-- 🏷️ **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
+- **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title` instead of keeping only
   the last artist. Pick another pattern or write your own with `{artist}` `{title}` `{album}` `{albumartist}`
   `{track}` `{year}`.
-- 🧹 **Tag options:** keep all tags, keep only the main fields, or remove everything. Cover art stays unless you turn
+- **Tag options:** keep all tags, keep only the main fields, or remove everything. Cover art stays unless you turn
   it off; MP3 tags are written as ID3v2.3 (works with DJ software and car stereos).
-- 🕵️ **Fake-quality check (optional):** measures where each file's audio *really* stops, not what its tag claims, and
+- **Fake-quality check (optional):** measures where each file's audio *really* stops, not what its tag claims, and
   estimates its true quality. Warn about or skip files below a minimum you choose, such as a 128k MP3 passed off as
   320 or lossless. It is an estimate, not proof. [How it works](docs/HOWTO.md#quality-check-spot-fake-files).
-- 🖱️ **Easy to use:** drag and drop a folder or files, include sub-folders (the layout is copied), see the time left.
-- 🛡️ **Safe:** originals are never touched, output goes to a separate folder, and existing files are skipped so
+- **Easy to use:** drag and drop a folder or files, include sub-folders (the layout is copied), see the time left.
+- **Safe:** originals are never touched, output goes to a separate folder, and existing files are skipped so
   reruns are harmless. MP3 sources are copied as they are when the output is MP3 (no re-encoding, tags still fixed).
-- 🔒 **Private:** nothing is uploaded anywhere; everything runs locally. The optional *Check for updates* button only
+- **Private:** nothing is uploaded anywhere; everything runs locally. The optional *Check for updates* button only
   contacts GitHub when you click it.
 
 Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3.
@@ -42,15 +42,15 @@ Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3.
 
 | | Download | Run |
 | --- | --- | --- |
-| 🪟 **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (just unzip and run) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere and double-click `Tunes Converter.exe`. |
-| 🍎 **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg and drag the app to Applications. The first time, open **System Settings > Privacy & Security** and click **Open Anyway**. *Not yet tested on a real Mac.* |
-| 🐧 **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. If it will not start, see the troubleshooting table. |
+| **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (just unzip and run) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere and double-click `Tunes Converter.exe`. |
+| **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg and drag the app to Applications. The first time, open **System Settings > Privacy & Security** and click **Open Anyway**. *Not yet tested on a real Mac.* |
+| **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. If it will not start, see the troubleshooting table. |
 
 Then add **ffmpeg** once (it is not included). The app asks on first launch and tells you what to do:
 on Windows press **Download ffmpeg**, on macOS use the **Get Homebrew** / **Copy command** buttons
 (`brew install ffmpeg`), on Linux install it with your package manager.
 
-📘 Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
+Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
 **[docs/HOWTO.md](docs/HOWTO.md)**.
 
 ## ⚙️ Settings
