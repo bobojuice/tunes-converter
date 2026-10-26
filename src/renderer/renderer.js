@@ -188,6 +188,37 @@
     renderBanner(state.ffmpeg);
   }
 
+  // Asked once per launch when ffmpeg is missing. Nothing is downloaded or installed until the user says yes.
+  function offerFfmpeg(ff) {
+    if (ff.found) return;
+    const dlg = $('firstRun');
+    const p = state.platform;
+    const yes = $('frYes');
+    const cmd = $('frCmd');
+    cmd.hidden = true;
+    if (p === 'win32') {
+      $('frText').textContent = 'Tunes Converter needs ffmpeg to convert music. Download it now? It is about 100 MB, comes from gyan.dev, is checked against a published checksum, and is kept with the app\'s own settings. Nothing else is installed.';
+      yes.textContent = 'Download ffmpeg';
+      yes.onclick = () => { dlg.close(); $('download').click(); };
+    } else if (p === 'darwin') {
+      $('frText').textContent = state.hasBrew
+        ? 'Tunes Converter needs ffmpeg. Copy this command, paste it into the Terminal app (Cmd+Space, type Terminal), press Return, then click "Check again".'
+        : 'Tunes Converter needs ffmpeg. The easiest way on a Mac is Homebrew (brew.sh). Install it, then copy this command, paste it into the Terminal app, press Return, and click "Check again".';
+      cmd.hidden = false;
+      cmd.textContent = 'brew install ffmpeg';
+      yes.textContent = 'Copy command';
+      yes.onclick = async () => { await window.tc.copyInstallCommand(); dlg.close(); };
+    } else {
+      $('frText').textContent = 'Tunes Converter needs ffmpeg. Install it with your package manager in a terminal, then click "Check again":';
+      cmd.hidden = false;
+      cmd.textContent = 'sudo apt install ffmpeg      # Debian / Ubuntu\nsudo dnf install ffmpeg      # Fedora (needs RPM Fusion)\nsudo pacman -S ffmpeg        # Arch';
+      yes.textContent = 'OK';
+      yes.onclick = () => dlg.close();
+    }
+    $('frNo').onclick = () => dlg.close();
+    dlg.showModal();
+  }
+
   async function init() {
     state = await window.tc.getState();
     $('inDir').value = settings().In;
@@ -198,6 +229,7 @@
     renderChips();
     renderBanner(state.ffmpeg);
 
+    offerFfmpeg(state.ffmpeg);
     window.tc.onBatchEvent(onBatchEvent);
     window.tc.onDownloadProgress(({ done, total }) => {
       const mb = (n) => (n / 1048576).toFixed(0);

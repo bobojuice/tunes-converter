@@ -120,6 +120,15 @@
   <footer class="foot"><span id="version"></span><span id="dataDir" class="grow"></span><span id="updateMsg"></span><button id="update" class="link" type="button">Check for updates</button><button id="help" class="link" type="button">Help</button></footer>
   <div id="dropHint" class="drop-hint" hidden>Drop a folder or music files here</div>
 </main>
+<dialog id="firstRun" class="modal" aria-labelledby="frTitle">
+  <h2 id="frTitle">ffmpeg is needed</h2>
+  <p id="frText"></p>
+  <pre id="frCmd" class="cmd" hidden></pre>
+  <div class="row">
+    <button id="frYes" class="btn primary small" type="button"></button>
+    <button id="frNo" class="btn ghost" type="button">Not now</button>
+  </div>
+</dialog>
 <script src="renderer.js"></script>
 </body>
 </html>
