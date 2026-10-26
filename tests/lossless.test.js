@@ -130,3 +130,10 @@ test('tag modes: keep everything, keep the main fields only, or strip all', { sk
   assert.equal(strip.title, undefined);
   assert.equal(strip.album, undefined);
 });
+
+test('naming: a reserved Windows name created by truncation is still escaped', () => {
+  const outDir = path.join(tmp, 'x'.repeat(200)); // long output path, so the name is cut short
+  const name = naming.buildName({ artist: '', title: '', fallbackBase: `CON ${'.'.repeat(30)}X`, outDir });
+  assert.doesNotMatch(name, /^(CON|PRN|AUX|NUL)$/i);
+  assert.equal(name, '_CON');
+});

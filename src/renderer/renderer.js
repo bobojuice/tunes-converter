@@ -58,6 +58,7 @@
     $('chipBitrate').title = 'Output bitrate. Click to change.';
     $('chipRate').querySelector('.t').textContent = `${s.SampleRate / 1000} kHz`;
     $('chipRate').title = 'Output sample rate. Click to change.';
+    $('chipRate').hidden = LOSSLESS.includes(s.Format); // WAV/FLAC keep the source sample rate
     $('chipMode').querySelector('.t').textContent = MODE_LABEL[s.QualityCheck];
     $('chipMode').dataset.mode = s.QualityCheck;
     $('chipMode').title = MODE_TIP[s.QualityCheck];
@@ -215,7 +216,11 @@
     $('outDir').addEventListener('change', () => save({ Out: $('outDir').value }));
 
     const cycle = (list, value) => list[(list.indexOf(value) + 1) % list.length];
-    $('chipBitrate').addEventListener('click', () => save({ Bitrate: cycle(BITRATES.slice().reverse(), settings().Bitrate) }));
+    $('chipBitrate').addEventListener('click', () => {
+      // For WAV/FLAC this chip shows the bit depth, so it changes the bit depth, not the (hidden) bitrate.
+      if (LOSSLESS.includes(settings().Format)) save({ BitDepth: settings().BitDepth === 16 ? 24 : 16 });
+      else save({ Bitrate: cycle(BITRATES.slice().reverse(), settings().Bitrate) });
+    });
     $('gear').addEventListener('click', () => {
       const open = $('panel').hidden;
       $('panel').hidden = !open;

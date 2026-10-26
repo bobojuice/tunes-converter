@@ -28,11 +28,13 @@ function buildName({ artist, title, fallbackBase, outDir, base: given }) {
   const base = given || (artist && title ? `${artist} - ${title}` : fallbackBase);
   let name = safeName(base);
   if (!name) return '';
-  if (RESERVED.test(name)) name = `_${name}`;
   const maxLen = Math.max(20, 240 - outDir.length - 30);
   if (name.length > maxLen) name = name.slice(0, maxLen).replace(/[. ]+$/, '');
   // Most Mac/Linux file systems allow 255 bytes per name; leave room for ".mp3" and the temporary suffix.
-  return trimToBytes(name, 200);
+  name = trimToBytes(name, 200);
+  // Checked last: trimming can itself leave a bare reserved name such as "CON".
+  if (name && RESERVED.test(name)) name = `_${name}`;
+  return name;
 }
 
 // Hands out unique names for one batch: "Name", "Name (2)", ... Independent of any quality verdict.
