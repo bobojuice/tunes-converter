@@ -1,6 +1,6 @@
 # Tunes Converter
 
-Drop a folder of music in, press **START**, get tidy MP3s (or FLAC, WAV, AAC, Opus) out. A small, portable app for **Windows, macOS and Linux**.
+Drop a folder of music in, press **START**, get tidy MP3s (or FLAC, WAV, AAC, Opus) out. A small app for **Windows, macOS and Linux**.
 
 **[Download the latest release](https://github.com/bobojuice/tunes-converter/releases/latest)** |
 **[Full instructions](docs/HOWTO.md)**
@@ -35,7 +35,7 @@ Drop a folder of music in, press **START**, get tidy MP3s (or FLAC, WAV, AAC, Op
 
 | System | Download | Run |
 | ------ | -------- | --- |
-| **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (portable) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere (a USB stick is fine) and double-click `Tunes Converter.exe`. |
+| **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (no install) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere and double-click `Tunes Converter.exe`. |
 | **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg and drag the app to Applications. The first time, open **System Settings > Privacy & Security** and click **Open Anyway**. *Not yet tested on a real Mac.* |
 | **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. If it will not start, see the troubleshooting table. |
 

@@ -16,11 +16,11 @@ const batchSlot = createSlot();
 let droppedFiles = [];
 let dlAbort = null;
 
-// Where settings and the log live: next to the app on Windows (portable zip), otherwise the user's app-data folder.
+// Where settings and the log live: next to the app on Windows (unzipped copy), otherwise the user's app-data folder.
 function dataDir() {
   if (process.env.TC_DATA_DIR) return process.env.TC_DATA_DIR;
   // The installer puts an uninstaller beside the exe; an installed copy keeps its data in app data so it survives
-  // updates and uninstalls. The unzipped (portable) copy has no uninstaller and keeps its data in its own folder.
+  // updates and uninstalls. The unzipped copy has no uninstaller and keeps its data in its own folder.
   const beside = path.dirname(process.execPath);
   const installed = fs.existsSync(path.join(beside, `Uninstall ${app.getName()}.exe`));
   if (app.isPackaged && process.platform === 'win32' && !installed) {

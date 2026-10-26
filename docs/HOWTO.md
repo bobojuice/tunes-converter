@@ -1,7 +1,7 @@
 # How to install and use Tunes Converter
 
-Tunes Converter turns a folder of music files into MP3s with correct `Artist - Title` file names. It is a small,
-portable app for Windows, macOS and Linux: there is no installer, and deleting it removes it completely.
+Tunes Converter turns a folder of music files into MP3s with correct `Artist - Title` file names. It is a small
+app for Windows, macOS and Linux.
 
 ![Tunes Converter](screenshot.png)
 
@@ -29,13 +29,13 @@ Download the file for your system from the project's **Releases** page.
 only (it never asks for administrator rights), adds a Start menu entry and a Desktop shortcut, and can be removed from Windows
 **Settings > Apps**. Your settings are kept in `%APPDATA%\Tunes Converter` and survive updates.
 
-**Portable (USB stick, no install):**
+**No install (zip):**
 
 1. Download `TunesConverter-<version>-win-x64.zip`.
 2. Right-click it, **Extract All...**, and pick any folder (a USB stick works too).
 3. Double-click **`Tunes Converter.exe`**.
 
-Keep the whole folder together. Your settings are saved next to the app, so the folder is fully portable.
+Keep the whole folder together. Your settings are saved next to the app, so it can also run from a USB stick.
 
 Windows SmartScreen may say "Windows protected your PC" because the app is not code-signed: click **More info**, then
 **Run anyway**.
@@ -176,7 +176,7 @@ Settings are saved automatically in `settings.json`:
 
 | System | Where |
 | ------ | ----- |
-| **Windows** | Next to `Tunes Converter.exe` (so the folder stays portable). If that location is read-only: `%APPDATA%\Tunes Converter`. |
+| **Windows** | Installed copy: `%APPDATA%\Tunes Converter`. Unzipped copy: next to `Tunes Converter.exe` (or `%APPDATA%\Tunes Converter` if that location is read-only). |
 | **macOS** | `~/Library/Application Support/Tunes Converter/` |
 | **Linux** | `~/.config/Tunes Converter/` |
 
@@ -224,7 +224,7 @@ in `last-run.log` in the same folder.
 
 ## Uninstall
 
-Delete the app (the folder on Windows, the app on macOS, the AppImage on Linux). Settings live in the folders listed
+Remove the app: on Windows uninstall it from **Settings > Apps** (or delete the folder if you used the zip); on macOS delete the app; on Linux delete the AppImage. Settings live in the folders listed
 under [Settings](#settings); delete those too if you want no trace. Your converted MP3s stay wherever you saved them.
 
 ## Build from source
