@@ -6,6 +6,8 @@ const { run } = require('./proc');
 const { joinArtists, buildName, pickTag, applyTemplate, trackNumber, yearOf, DEFAULT_TEMPLATE } = require('./naming');
 const { testQuality } = require('./quality');
 const { FORMATS } = require('./formats');
+const { checkClipping } = require('./clipping');
+const { songKey } = require('./duplicates');
 
 async function probe(ffprobe, file, signal) {
   const r = await run(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { signal });
@@ -32,7 +34,7 @@ function placeNoOverwrite(part, dest) {
 }
 
 // Converts one file. Returns { status: 'OK'|'WARN'|'LOW'|'FAKE'|'SKIP'|'FAIL'|'STOP', name, note }.
-async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus }) {
+async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus, seen }) {
   const baseName = path.basename(file);
   if (signal.aborted) return { status: 'STOP' };
 
@@ -59,6 +61,11 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
 
   const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir, base: fromTemplate || path.parse(baseName).name });
   if (!stem) return { status: 'FAIL', name: baseName, note: 'empty file name' };
+  // The same song from another file or format (not the "Name (2)" de-duplication, which is about file names).
+  const key = settings.DuplicateMode === 'off' || !seen ? '' : songKey(artist, title);
+  const length = Number(info.format && info.format.duration) || 0;
+  const twin = key ? seen.find(key, length) : null;
+  if (twin && settings.DuplicateMode === 'skip') return { status: 'SKIP', name: baseName, note: `same song as ${twin}`, duplicate: true };
   const { name, duplicate } = allocator.allocate(stem);
   const dupNote = duplicate ? 'duplicate name; ' : '';
   const fmt = FORMATS[settings.Format] || FORMATS.mp3;
@@ -79,6 +86,14 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (quality.low && settings.QualityCheck === 'skip') return { status: quality.kind, name: baseName, note: quality.msg };
   }
 
+  let clipMsg = '';
+  if (settings.ClipCheck) {
+    if (onStatus) onStatus(`Checking levels - ${baseName}`);
+    const c = await checkClipping({ ffmpeg: tools.ffmpeg, file, signal });
+    if (c.cancelled) return { status: 'STOP' };
+    clipMsg = c.msg;
+  }
+
   const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
   const isMp3 = fmt === FORMATS.mp3 && audio.codec_name === 'mp3'; // an MP3 stays as is (no second lossy pass)
   const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
@@ -91,7 +106,8 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     args.push('-c', 'copy');
   } else {
     const depth = settings.BitDepth === 24 ? 24 : 16;
-    args.push('-c:a', fmt === FORMATS.wav ? (depth === 24 ? 'pcm_s24le' : 'pcm_s16le') : fmt.encoder);
+    args.push('-c:a', fmt === FORMATS.wav ? (depth === 24 ? 'pcm_s24le' : 'pcm_s16le')
+      : fmt === FORMATS.aiff ? (depth === 24 ? 'pcm_s24be' : 'pcm_s16be') : fmt.encoder);
     if (fmt.lossy) args.push('-b:a', `${kbps}k`);
     if (fmt.depth) {
       // 32-bit float (and other deeper) sources are converted to the chosen depth; 16-bit gets dither.
@@ -103,7 +119,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (coverOk) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
   }
   if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
-  if (fmt === FORMATS.wav && tagMode !== 'strip') args.push('-write_id3v2', '1');
+  if ((fmt === FORMATS.wav || fmt === FORMATS.aiff) && tagMode !== 'strip') args.push('-write_id3v2', '1');
   if (tagMode === 'keep') {
     if (artist) args.push('-metadata', `artist=${artist}`);
     if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
@@ -124,7 +140,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
     let note = dupNote + (isMp3 ? 'MP3 kept as is' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${settings.BitDepth === 24 ? 24 : 16}-bit` : 'lossless');
     if (quality && quality.msg) note += ` | ${quality.msg}`;
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note };
+    if (twin) note += ` | possible duplicate of ${twin}`;
+    if (clipMsg) note += ` | ${clipMsg}`;
+    if (key) seen.add(key, length, outName);
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {

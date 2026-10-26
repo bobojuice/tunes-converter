@@ -3,7 +3,7 @@
 # 🎵 Tunes Converter
 
 **Drop a folder of music in, press START, get tidy files out.**
-MP3 · AAC · FLAC · WAV · Opus — with correct names, tags and an optional fake-quality check.
+MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an optional fake-quality check.
 
 [![Latest release](https://img.shields.io/github/v/release/bobojuice/tunes-converter?style=for-the-badge&color=2dbe6c)](https://github.com/bobojuice/tunes-converter/releases/latest)
 ![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-333?style=for-the-badge)
@@ -18,9 +18,12 @@ MP3 · AAC · FLAC · WAV · Opus — with correct names, tags and an optional f
 
 ## ✨ What it does
 
-- **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV or Opus**.
-- **Made for DJs:** WAV and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
-  **32-bit float** are converted down to the depth you choose, dithered at 16-bit.
+- **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV, AIFF or Opus**.
+- **Made for DJs:** WAV, AIFF and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
+  **32-bit float** are converted down to the depth you choose, dithered at 16-bit. **AIFF** keeps tags and cover art (WAV tags are poorly supported by Rekordbox and CDJs).
+- **Presets:** save your settings under a name (e.g. "DJ USB: AIFF 16-bit") and load them with one click.
+- **Duplicate songs:** the same song in two files or formats is flagged in the log, or the extra copies are skipped.
+- **Clipping check (optional):** warns about tracks that are clipped or peak above 0 dBFS.
 - **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title` instead of keeping only
   the last artist. Pick another pattern or write your own with `{artist}` `{title}` `{album}` `{albumartist}`

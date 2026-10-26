@@ -4,8 +4,9 @@
   const BITRATES = [128, 160, 192, 224, 256, 320];
   const MIN_ORDER = [320, 256, 224, 192, 160, 128];
   const MODES = ['off', 'warn', 'skip'];
-  const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', opus: 'Opus' };
-  const LOSSLESS = ['flac', 'wav'];
+  const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'Opus' };
+  const LOSSLESS = ['flac', 'wav', 'aiff'];
+  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode'];
   const FORMAT_ORDER = Object.keys(FORMATS);
   const MODE_LABEL = { off: 'Quality check: off', warn: 'Quality check: warn', skip: 'Quality check: skip fakes' };
   const MODE_TIP = {
@@ -48,6 +49,7 @@
     $('chipRecurse').title = 'Also convert music in sub-folders, keeping the same folder layout. Click to change.';
     const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
     $('setName').value = preset ? preset.value : 'custom';
+    renderPresets();
     for (const el of document.querySelectorAll('#panel [data-show]')) {
       const kind = el.dataset.show;
       el.hidden = kind === 'depth' ? !LOSSLESS.includes(s.Format)
@@ -67,12 +69,45 @@
     $('chipMin').title = 'Lowest real quality you accept (judged from the audio, not the file label). Click to change.';
   }
 
+  function renderPresets(selected) {
+    const list = settings().Presets || [];
+    const pick = $('presetList');
+    const keep = selected !== undefined ? selected : pick.value;
+    pick.textContent = '';
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = list.length ? 'Choose a preset...' : 'No presets saved yet';
+    pick.appendChild(first);
+    for (const p of list) {
+      const o = document.createElement('option');
+      o.value = p.name;
+      o.textContent = p.name;
+      pick.appendChild(o);
+    }
+    pick.value = list.some((p) => p.name === keep) ? keep : '';
+    $('presetDelete').disabled = running || !pick.value;
+  }
+
+  async function savePreset() {
+    const name = $('presetName').value.trim();
+    if (!name) { $('presetMsg').textContent = 'Type a name first.'; return; }
+    const options = {};
+    for (const k of PRESET_KEYS) options[k] = settings()[k];
+    const list = (settings().Presets || []).filter((p) => p.name.toLowerCase() !== name.toLowerCase());
+    list.push({ name, options });
+    await save({ Presets: list });
+    const saved = (settings().Presets || []).some((p) => p.name === name);
+    $('presetMsg').textContent = saved ? `Saved "${name}".` : 'Not saved (up to 20 presets, names up to 40 characters).';
+    if (saved) { $('presetName').value = ''; renderPresets(name); }
+  }
+
   function setRunning(value) {
     running = value;
     $('start').disabled = value;
     $('start').textContent = value ? 'Converting...' : ranOnce ? 'RUN AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
-    for (const el of document.querySelectorAll('#panel [data-key], #setName')) el.disabled = value;
+    for (const el of document.querySelectorAll('#panel [data-key], #setName, #presetList, #presetName, #presetSave')) el.disabled = value;
+    $('presetDelete').disabled = value || !$('presetList').value;
     for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipFormat', 'chipRecurse', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
   }
 
@@ -270,6 +305,21 @@
       const typed = $('setNameTemplate').value.trim();
       await save({ NameTemplate: typed });
       if (settings().NameTemplate !== typed) $('nameHelp').textContent = 'Not accepted. Use only {artist} {title} {album} {albumartist} {track} {year} with your own text around them.';
+    });
+    $('presetList').addEventListener('change', async () => {
+      const p = (settings().Presets || []).find((x) => x.name === $('presetList').value);
+      $('presetMsg').textContent = '';
+      if (p) { await save(p.options); $('presetMsg').textContent = `Loaded "${p.name}".`; }
+      renderPresets();
+    });
+    $('presetSave').addEventListener('click', savePreset);
+    $('presetName').addEventListener('keydown', (e) => { if (e.key === 'Enter') savePreset(); });
+    $('presetDelete').addEventListener('click', async () => {
+      const name = $('presetList').value;
+      if (!name) return;
+      await save({ Presets: (settings().Presets || []).filter((p) => p.name !== name) });
+      $('presetMsg').textContent = `Deleted "${name}".`;
+      renderPresets('');
     });
     for (const el of document.querySelectorAll('#panel [data-key]')) {
       if (el.id === 'setNameTemplate') continue;

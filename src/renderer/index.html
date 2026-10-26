@@ -22,9 +22,17 @@
   </header>
 
   <section id="panel" class="card panel" hidden aria-label="Settings">
+    <div class="presets">
+      <label for="presetList">Presets</label>
+      <select id="presetList"></select>
+      <button id="presetDelete" class="btn ghost small" type="button">Delete</button>
+      <input id="presetName" type="text" maxlength="40" placeholder="Name for the current settings" spellcheck="false" autocomplete="off" aria-label="Preset name">
+      <button id="presetSave" class="btn ghost small" type="button">Save</button>
+      <span id="presetMsg" class="help" role="status"></span>
+    </div>
     <div class="grid">
       <label for="setFormat">Output format</label>
-      <select id="setFormat" data-key="Format"><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="wav">WAV (uncompressed)</option><option value="opus">Opus</option></select>
+      <select id="setFormat" data-key="Format"><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="wav">WAV (uncompressed)</option><option value="aiff">AIFF (uncompressed, keeps tags)</option><option value="opus">Opus</option></select>
       <label for="setDepth" data-show="depth">Bit depth</label>
       <select id="setDepth" data-key="BitDepth" data-number data-show="depth"><option value="16">16-bit (most compatible)</option><option value="24">24-bit</option></select>
       <label for="setBitrate" data-show="lossy">Bitrate</label>
@@ -41,12 +49,15 @@
       <input id="setNameTemplate" type="text" data-key="NameTemplate" data-show="custom" spellcheck="false" autocomplete="off">
       <span data-show="custom"></span>
       <span id="nameHelp" class="help" data-show="custom">Use {artist} {title} {album} {albumartist} {track} {year}. If a tag is missing the original file name is kept.</span>
+      <label for="setDup">Duplicate songs</label>
+      <select id="setDup" data-key="DuplicateMode"><option value="off">Off</option><option value="warn">Warn in the log</option><option value="skip">Skip extra copies</option></select>
       <label for="setTags">Tags</label>
       <select id="setTags" data-key="TagMode"><option value="keep">Keep all tags</option><option value="clean">Keep main fields only</option><option value="strip">Remove all tags</option></select>
     </div>
     <label class="check"><input type="checkbox" data-key="Recurse"> Include sub-folders (keeps the same folder layout)</label>
     <label class="check"><input type="checkbox" data-key="CoverArt"> Keep cover art</label>
     <label class="check"><input type="checkbox" data-key="JoinArtists"> Full artist names ("A;B" becomes "A, B")</label>
+    <label class="check"><input type="checkbox" data-key="ClipCheck"> Check for clipping (slower: reads each file once more)</label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 

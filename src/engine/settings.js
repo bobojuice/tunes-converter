@@ -25,11 +25,39 @@ function defaults(desktopDir) {
     Recurse: false,
     CoverArt: true,
     JoinArtists: true,
+    ClipCheck: false,
+    DuplicateMode: 'warn',
+    Presets: [],
     OpenWhenDone: false,
     WinW: 820,
     WinH: 840,
     FfmpegDir: ''
   };
+}
+
+// A preset remembers the conversion options only, never folders, window size or the ffmpeg location.
+const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode',
+  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode'];
+const MAX_PRESETS = 20;
+const MAX_PRESET_NAME = 40;
+
+// Every entry is checked field by field; bad entries are dropped, names are unique (ignoring case), at most MAX_PRESETS.
+function cleanPresets(list) {
+  const out = [];
+  const names = new Set();
+  for (const p of list) {
+    if (out.length >= MAX_PRESETS) break;
+    if (!p || typeof p !== 'object' || typeof p.name !== 'string') continue;
+    const name = p.name.trim();
+    if (!name || name.length > MAX_PRESET_NAME || /[\u0000-\u001f]/.test(name) || names.has(name.toLowerCase())) continue;
+    if (!p.options || typeof p.options !== 'object') continue;
+    const checked = merge({}, p.options); // merge() only copies valid values
+    const options = {};
+    for (const k of PRESET_KEYS) if (checked[k] !== undefined) options[k] = checked[k];
+    names.add(name.toLowerCase());
+    out.push({ name, options });
+  }
+  return out;
 }
 
 // Each key is validated on its own, so one bad value never discards the valid ones.
@@ -46,9 +74,11 @@ function merge(base, raw) {
   if ([16, 24].includes(Number(raw.BitDepth))) s.BitDepth = Number(raw.BitDepth);
   if (TAG_MODES.includes(raw.TagMode)) s.TagMode = raw.TagMode;
   if (validTemplate(raw.NameTemplate)) s.NameTemplate = raw.NameTemplate.trim();
-  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'OpenWhenDone']) {
+  if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
+  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }
+  if (Array.isArray(raw.Presets)) s.Presets = cleanPresets(raw.Presets);
   for (const k of ['WinW', 'WinH']) {
     const n = Number(raw[k]);
     if (Number.isInteger(n) && n >= 400 && n <= 10000) s[k] = n;
@@ -74,4 +104,4 @@ function save(file, base, changes) {
   return next;
 }
 
-module.exports = { TAG_MODES, BITRATES, SAMPLE_RATES, MODES, defaults, merge, load, save };
+module.exports = { PRESET_KEYS, MAX_PRESETS, MAX_PRESET_NAME, cleanPresets, TAG_MODES, BITRATES, SAMPLE_RATES, MODES, defaults, merge, load, save };

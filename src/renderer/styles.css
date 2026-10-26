@@ -145,3 +145,7 @@ button.toggle:disabled { cursor: default; opacity: 0.6; }
 .modal p { margin: 0 0 14px; color: var(--chip-ink); font-size: 14px; line-height: 1.45; }
 .modal .row { display: flex; gap: 10px; justify-content: flex-end; }
 .btn.primary.small { height: 40px; width: auto; padding: 0 18px; font-size: 14px; letter-spacing: 0; }
+.panel .presets { display: grid; grid-template-columns: 160px 1fr auto; gap: 10px 14px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--field-border); }
+.panel .presets input[type="text"] { grid-column: 2; }
+.panel .presets .help { grid-column: 2 / 4; min-height: 1em; }
+.btn.small { height: 36px; width: auto; padding: 0 16px; font-size: 14px; }

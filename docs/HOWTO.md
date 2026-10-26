@@ -94,9 +94,15 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Settings:** the **Settings** button (top right) has every option, including keeping cover art, full artist names and opening the folder when finished.
 
-**Lossless and DJ use:** choose **WAV** or **FLAC** and a **Bit depth** (16-bit is the most compatible with CDJs). This also fixes 32-bit float rips: they are converted to the depth you pick, with dither at 16-bit. **File names** lets you pick a pattern (Artist - Title, Title, Track - Artist - Title, or your own). **Tags** can keep everything, keep only the main fields, or remove all tags.
+**Lossless and DJ use:** choose **WAV**, **AIFF** or **FLAC** and a **Bit depth** (16-bit is the most compatible with CDJs). This also fixes 32-bit float rips: they are converted to the depth you pick, with dither at 16-bit. **File names** lets you pick a pattern (Artist - Title, Title, Track - Artist - Title, or your own). **Tags** can keep everything, keep only the main fields, or remove all tags. **AIFF** is the best uncompressed choice for Rekordbox and CDJs: unlike WAV it keeps tags and cover art.
 
-**Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click the format chip to choose MP3, AAC (M4A), FLAC or Opus (Opus tops out at 256 kbps); click **Subfolders** to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
+**Presets:** at the top of Settings, type a name and press **Save** to remember the current options (format, quality, names, tags and the other switches; never the folders). Pick a preset from the list to load it; **Delete** removes the selected one. Up to 20 presets.
+
+**Duplicate songs:** *Duplicate songs* in Settings compares artist and title (ignoring capitals, accents and punctuation) and, when both lengths are known, the length (within 3 seconds). It looks at songs converted in the same run, even from different formats. **Warn in the log** converts everything and notes "possible duplicate of ..."; **Skip extra copies** leaves them out (shown as SKIP). A remix with a different title is not a duplicate. This is separate from the "(2)" added when two different files get the same name.
+
+**Clipping check:** switch on *Check for clipping* in Settings to read each file once more and flag tracks with many samples at full scale or peaks above 0 dBFS. It only adds a note to the log (and a count in the summary); nothing is changed or skipped. Off by default because it takes extra time.
+
+**Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click the format chip to choose MP3, AAC (M4A), FLAC, WAV, AIFF or Opus (Opus tops out at 256 kbps); click **Subfolders** to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
 
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
 reason is shown; the rest of the batch continues). Amber **WARN**/**LOW** and red **FAKE** come from the
@@ -191,12 +197,15 @@ the app is closed:
 | `SampleRate`   | `44100`             | `44100`, `48000`                         |
 | `QualityCheck` | `warn`              | `off`, `warn`, `skip`                    |
 | `MinKbps`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
-| `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `wav`, `opus` (click the format chip) |
-| `BitDepth`     | `16`                | `16` or `24`; used for `flac` and `wav` (a 32-bit float source is converted down) |
+| `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `wav`, `aiff`, `opus` (click the format chip) |
+| `BitDepth`     | `16`                | `16` or `24`; used for `flac`, `wav` and `aiff` (a 32-bit float source is converted down) |
 | `NameTemplate` | `{artist} - {title}` | any text with `{artist}` `{title}` `{album}` `{albumartist}` `{track}` `{year}`; if a tag it uses is missing, the original file name is kept |
 | `TagMode`      | `keep`              | `keep` all tags, `clean` (artist, album artist, title, album, track, date, genre only), `strip` (none) |
 | `CoverArt`     | `true`              | `false` drops embedded cover art |
 | `JoinArtists`  | `true`              | `false` leaves multi-artist tags as they are |
+| `ClipCheck`    | `false`             | `true` flags clipped tracks in the log |
+| `DuplicateMode` | `warn`             | `off`, `warn` (note in the log), `skip` (leave extra copies out) |
+| `Presets`      | empty               | list of saved presets, each a name plus the conversion options (managed in Settings; up to 20) |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
 | `WinW`, `WinH` | `820`, `840`        | window size, saved when you close the app |
