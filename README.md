@@ -74,7 +74,7 @@ npm test           # unit + integration tests (needs ffmpeg and ffprobe on your 
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.2.0` collects them
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.3.0` collects them
 into a draft release. The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
 ## 📝 Status
