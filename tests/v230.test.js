@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process');
 const { findTools } = require('../src/engine/tools');
 const { runBatch } = require('../src/engine/batch');
 const { songKey, SeenSongs } = require('../src/engine/duplicates');
+const { run: runProc } = require('../src/engine/proc');
 const { parseAstats, describeClipping } = require('../src/engine/clipping');
 const settings = require('../src/engine/settings');
 
@@ -149,23 +150,29 @@ test('aiff: big-endian PCM with tags and cover art', { skip }, async () => {
 test('clipping: astats output is parsed and judged', () => {
   const text = (db, n) => `[Parsed_astats_0 @ 0] Channel: 1\n[Parsed_astats_0 @ 0] Peak level dB: -30.0\n[Parsed_astats_0 @ 0] Overall\n[Parsed_astats_0 @ 0] Peak level dB: ${db}\n[Parsed_astats_0 @ 0] Peak count: ${n}.000000\n[Parsed_astats_0 @ 0] Number of samples: 10\n`;
   assert.deepEqual(parseAstats(text('-0.020000', 120)), { peakDb: -0.02, peakCount: 120 });
-  assert.match(describeClipping(parseAstats(text('0.000000', 120))), /clipping: 120 samples/);
+  assert.match(describeClipping(parseAstats(text('0.000000', 120))), /possible clipping: 120 samples/);
   assert.match(describeClipping(parseAstats(text('2.500000', 1))), /over 0/);
   assert.equal(describeClipping(parseAstats(text('-6.000000', 500))), '');
   assert.equal(describeClipping(parseAstats(text('-0.020000', 2))), '', 'a couple of touches is not clipping');
   assert.equal(parseAstats('nothing here'), null);
 });
 
+test('proc: the end of a long stderr is kept (astats summary comes last)', async () => {
+  const script = "for (let i = 0; i < 200; i++) process.stderr.write('noise ' + i + '\\\\n'); setTimeout(() => process.stderr.write('Overall\\\\nPeak level dB: 0.0\\\\nPeak count: 50\\\\n'), 50);";
+  const r = await runProc(process.execPath, ['-e', script]);
+  assert.deepEqual(parseAstats(r.stderr), { peakDb: 0, peakCount: 50 });
+});
+
 test('clipping: flags a squashed track and leaves a quiet one alone, only when switched on', { skip }, async () => {
   const inDir = path.join(tmp, 'in-clip');
   fs.mkdirSync(inDir);
   // hard-clipped: gain well past full scale, written as 16-bit so the samples saturate
-  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', '-af', 'volume=8', '-c:a', 'pcm_s16le', '-metadata', 'artist=L', '-metadata', 'title=Loud', path.join(inDir, 'loud.wav')]);
+  ff(['-f', 'lavfi', '-i', 'sine=f=440:d=3', '-af', 'volume=16', '-c:a', 'pcm_s16le', '-metadata', 'artist=L', '-metadata', 'title=Loud', path.join(inDir, 'loud.wav')]);
   ff(['-f', 'lavfi', '-i', 'sine=f=330:d=3', '-af', 'volume=0.3', '-metadata', 'artist=Q', '-metadata', 'title=Quiet', path.join(inDir, 'quiet.flac')]);
   const on = await run(inDir, path.join(tmp, 'o-clip-on'), { ClipCheck: true });
   assert.equal(on.counts.OK, 2);
   assert.equal(on.counts.CLIPPED, 1);
-  assert.match(on.results.find((x) => /Loud/.test(x.name)).note, /clipping: \d+ samples/);
+  assert.match(on.results.find((x) => /Loud/.test(x.name)).note, /possible clipping: \d+ samples/);
   assert.doesNotMatch(on.results.find((x) => /Quiet/.test(x.name)).note, /clipping|dBFS/);
   assert.match(on.summary, /1 with clipping/);
   const off = await run(inDir, path.join(tmp, 'o-clip-off'), { ClipCheck: false });

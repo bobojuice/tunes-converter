@@ -4,6 +4,8 @@ const { spawn } = require('child_process');
 // Runs a program without a shell (arguments are never re-parsed, so odd file names are safe).
 // Resolves when the process ends; if `signal` aborts, the process is killed and `aborted` is true.
 // `binary: true` returns stdout as one Buffer; `maxBytes` stops runaway output.
+const MAX_STDERR = 256 * 1024;
+
 function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, stdinNull = true } = {}) {
   return new Promise((resolve) => {
     if (signal && signal.aborted) return resolve({ code: null, stdout: binary ? Buffer.alloc(0) : '', stderr: '', aborted: true, truncated: false });
@@ -15,6 +17,7 @@ function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, s
     }
     const out = [];
     const errChunks = [];
+    let errSize = 0;
     let size = 0;
     let truncated = false;
     let aborted = false;
@@ -27,7 +30,12 @@ function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, s
       if (size > maxBytes) { truncated = true; kill(); return; }
       out.push(d);
     });
-    child.stderr.on('data', (d) => { if (errChunks.length < 64) errChunks.push(d); });
+    // keep the most recent stderr (the end holds the final error or the astats summary), bounded in size
+    child.stderr.on('data', (d) => {
+      errChunks.push(d);
+      errSize += d.length;
+      while (errSize > MAX_STDERR && errChunks.length > 1) errSize -= errChunks.shift().length;
+    });
     child.on('error', (err) => {
       if (signal) signal.removeEventListener('abort', onAbort);
       resolve({ code: -1, stdout: binary ? Buffer.alloc(0) : '', stderr: String(err.message), aborted, truncated });

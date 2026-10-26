@@ -15,8 +15,8 @@ function parseAstats(stderr) {
 // Turns the numbers into a warning, or '' when the track is fine.
 function describeClipping(m) {
   if (!m || !Number.isFinite(m.peakDb)) return '';
-  if (m.peakDb > 0.05) return `peaks ${m.peakDb.toFixed(1)} dBFS (over 0, will distort)`;
-  if (m.peakDb >= -0.1 && m.peakCount >= 10) return `clipping: ${m.peakCount} samples at full scale`;
+  if (m.peakDb > 0.05) return `peaks ${m.peakDb.toFixed(1)} dBFS (over 0, may distort)`;
+  if (m.peakDb >= -0.1 && m.peakCount >= 10) return `possible clipping: ${m.peakCount} samples at full scale`;
   return '';
 }
 
