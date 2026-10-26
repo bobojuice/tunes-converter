@@ -1,58 +1,66 @@
-# Tunes Converter
+<div align="center">
 
-Drop a folder of music in, press **START**, get tidy MP3s (or FLAC, WAV, AAC, Opus) out. A small app for **Windows, macOS and Linux**.
+# 🎵 Tunes Converter
 
-**[Download the latest release](https://github.com/bobojuice/tunes-converter/releases/latest)** |
-**[Full instructions](docs/HOWTO.md)**
+**Drop a folder of music in, press START, get tidy files out.**
+MP3 · AAC · FLAC · WAV · Opus — with correct names, tags and an optional fake-quality check.
 
-![Tunes Converter](docs/screenshot.png)
+[![Latest release](https://img.shields.io/github/v/release/bobojuice/tunes-converter?style=for-the-badge&color=2dbe6c)](https://github.com/bobojuice/tunes-converter/releases/latest)
+![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-333?style=for-the-badge)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
-## What it does
+**[⬇️ Download the latest release](https://github.com/bobojuice/tunes-converter/releases/latest)** ·
+**[📖 Full instructions](docs/HOWTO.md)**
 
-- **MP3 at 320 kbps** (CBR, 44.1 kHz) by default, via ffmpeg/LAME. Or choose **AAC (M4A), FLAC, WAV or Opus** in
-  the Settings panel.
-- **Lossless and DJ use:** WAV and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
-  32-bit float are converted down to the depth you choose (dithered at 16-bit).
-- **Correct names:** files become `Artist - Title.mp3` by default. Tracks with several artists in separate tags
-  (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title.mp3` instead of
-  keeping only the last artist. Pick another pattern (Title, Track - Artist - Title, ...) or write your own with
-  `{artist}`, `{title}`, `{album}`, `{albumartist}`, `{track}` and `{year}`.
-- **Tag options:** keep all tags (default), keep only the main fields, or remove all tags. Cover art is kept
-  unless you turn it off; MP3 tags are written as ID3v2.3 (works with DJ software and car stereos).
-- **Fake-quality check (optional):** measures where each file's audio really stops, not what its tag claims, to
-  estimate its likely real quality. It can warn about or skip files below a minimum you choose, for example a
-  128k MP3 passed off as 320 or lossless. It is an estimate, not proof. Details in
-  [docs/HOWTO.md](docs/HOWTO.md#quality-check-spot-fake-files).
-- **Drag and drop** a folder or music files onto the window, **include sub-folders** (the folder layout is
-  copied), and see the **time left** while it works.
-- **Originals are never touched.** Output goes to a separate folder; existing files are skipped, so reruns are safe.
-- Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3. MP3 sources are copied as they are when the output is MP3
-  (no re-encoding, tags still fixed).
-- Nothing is uploaded anywhere. Everything runs locally. The optional **Check for updates** button only contacts
-  GitHub when you click it.
+<img src="docs/screenshot.png" alt="Tunes Converter main window" width="46%"> <img src="docs/screenshot-settings.png" alt="Tunes Converter settings panel" width="46%">
 
-## Install and use
+</div>
 
-| System | Download | Run |
-| ------ | -------- | --- |
-| **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (just unzip and run) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere and double-click `Tunes Converter.exe`. |
-| **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg and drag the app to Applications. The first time, open **System Settings > Privacy & Security** and click **Open Anyway**. *Not yet tested on a real Mac.* |
-| **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. If it will not start, see the troubleshooting table. |
+## ✨ What it does
 
-Then add **ffmpeg** once (it is not included): on Windows press **Download ffmpeg** in the app, on macOS use the
-**Get Homebrew** / **Copy command** buttons (`brew install ffmpeg`), on Linux install it with your package
-manager. The app tells you what to do if it can't find it.
+- 🎚️ **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV or Opus**.
+- 🎧 **Made for DJs:** WAV and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
+  **32-bit float** are converted down to the depth you choose, dithered at 16-bit.
+- 🏷️ **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
+  (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title` instead of keeping only
+  the last artist. Pick another pattern or write your own with `{artist}` `{title}` `{album}` `{albumartist}`
+  `{track}` `{year}`.
+- 🧹 **Tag options:** keep all tags, keep only the main fields, or remove everything. Cover art stays unless you turn
+  it off; MP3 tags are written as ID3v2.3 (works with DJ software and car stereos).
+- 🕵️ **Fake-quality check (optional):** measures where each file's audio *really* stops, not what its tag claims, and
+  estimates its true quality. Warn about or skip files below a minimum you choose, such as a 128k MP3 passed off as
+  320 or lossless. It is an estimate, not proof. [How it works](docs/HOWTO.md#quality-check-spot-fake-files).
+- 🖱️ **Easy to use:** drag and drop a folder or files, include sub-folders (the layout is copied), see the time left.
+- 🛡️ **Safe:** originals are never touched, output goes to a separate folder, and existing files are skipped so
+  reruns are harmless. MP3 sources are copied as they are when the output is MP3 (no re-encoding, tags still fixed).
+- 🔒 **Private:** nothing is uploaded anywhere; everything runs locally. The optional *Check for updates* button only
+  contacts GitHub when you click it.
 
-Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
+Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3.
+
+## 🚀 Install and use
+
+| | Download | Run |
+| --- | --- | --- |
+| 🪟 **Windows** | `TunesConverter-<version>-win-x64-setup.exe` (installer) or `...-win-x64.zip` (just unzip and run) | Run the installer (no admin rights; adds a Start menu entry and a Desktop shortcut), or unzip anywhere and double-click `Tunes Converter.exe`. |
+| 🍎 **macOS** | `TunesConverter-<version>-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Open the dmg and drag the app to Applications. The first time, open **System Settings > Privacy & Security** and click **Open Anyway**. *Not yet tested on a real Mac.* |
+| 🐧 **Linux** | `TunesConverter-<version>-linux-x86_64.AppImage` (or `.tar.gz`) | Make it executable and run it. If it will not start, see the troubleshooting table. |
+
+Then add **ffmpeg** once (it is not included). The app asks on first launch and tells you what to do:
+on Windows press **Download ffmpeg**, on macOS use the **Get Homebrew** / **Copy command** buttons
+(`brew install ffmpeg`), on Linux install it with your package manager.
+
+📘 Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
 **[docs/HOWTO.md](docs/HOWTO.md)**.
 
-## Settings
+## ⚙️ Settings
 
 Click **Settings** (top right) for every option: output format, bit depth, bitrate, sample rate, quality check and
 minimum, file names, tags, sub-folders, cover art, full artist names, and opening the output folder when finished.
 The two folders and all options are saved automatically in `settings.json`. See
 [docs/HOWTO.md](docs/HOWTO.md#settings) for where it lives and what each value means.
-## Build from source
+
+## 🛠️ Build from source
 
 Needs [Node.js](https://nodejs.org) 22 or newer.
 
@@ -63,20 +71,18 @@ npm test           # unit + integration tests (needs ffmpeg and ffprobe on your 
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.1.0` collects them
-into a draft release.
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.2.0` collects them
+into a draft release. The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
-The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
-
-## Status
+## 📝 Status
 
 I built this for myself and I'm sharing it in case it's useful to you. It works for me, but I'm not actively
 maintaining it, so I can't promise fixes, features, or replies. It's provided as-is, with no warranty
 (see the MIT license).
 
-Issues are turned off. You're very welcome to fork it and make it your own. Hope it helps!
+Issues are turned off. You're very welcome to fork it and make it your own. Hope it helps! 💚
 
-## License
+## ⚖️ License
 
 MIT (`LICENSE`). The app is built on Electron (MIT, includes Chromium). ffmpeg is a separate program with its own
 license (the common builds are GPL) and is not bundled; see `THIRD-PARTY-NOTICES.md`.
