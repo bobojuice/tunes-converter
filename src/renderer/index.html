@@ -24,15 +24,25 @@
   <section id="panel" class="card panel" hidden aria-label="Settings">
     <div class="grid">
       <label for="setFormat">Output format</label>
-      <select id="setFormat" data-key="Format"><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="opus">Opus</option></select>
-      <label for="setBitrate">Bitrate</label>
-      <select id="setBitrate" data-key="Bitrate" data-number><option>128</option><option>160</option><option>192</option><option>224</option><option>256</option><option>320</option></select>
-      <label for="setRate">Sample rate</label>
-      <select id="setRate" data-key="SampleRate" data-number><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select>
+      <select id="setFormat" data-key="Format"><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="wav">WAV (uncompressed)</option><option value="opus">Opus</option></select>
+      <label for="setDepth" data-show="depth">Bit depth</label>
+      <select id="setDepth" data-key="BitDepth" data-number data-show="depth"><option value="16">16-bit (most compatible)</option><option value="24">24-bit</option></select>
+      <label for="setBitrate" data-show="lossy">Bitrate</label>
+      <select id="setBitrate" data-key="Bitrate" data-number data-show="lossy"><option>128</option><option>160</option><option>192</option><option>224</option><option>256</option><option>320</option></select>
+      <label for="setRate" data-show="lossy">Sample rate</label>
+      <select id="setRate" data-key="SampleRate" data-number data-show="lossy"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select>
       <label for="setQuality">Quality check</label>
       <select id="setQuality" data-key="QualityCheck"><option value="off">Off (fastest)</option><option value="warn">Warn about low quality</option><option value="skip">Skip files below the minimum</option></select>
       <label for="setMin">Minimum quality</label>
       <select id="setMin" data-key="MinKbps" data-number><option>128</option><option>160</option><option>192</option><option>224</option><option>256</option><option>320</option></select>
+      <label for="setName">File names</label>
+      <select id="setName"><option value="{artist} - {title}">Artist - Title</option><option value="{title}">Title</option><option value="{track} - {artist} - {title}">Track - Artist - Title</option><option value="{artist} - {album} - {title}">Artist - Album - Title</option><option value="custom">Custom...</option></select>
+      <label for="setNameTemplate" data-show="custom">Name pattern</label>
+      <input id="setNameTemplate" type="text" data-key="NameTemplate" data-show="custom" spellcheck="false" autocomplete="off">
+      <span data-show="custom"></span>
+      <span id="nameHelp" class="help" data-show="custom">Use {artist} {title} {album} {albumartist} {track} {year}. If a tag is missing the original file name is kept.</span>
+      <label for="setTags">Tags</label>
+      <select id="setTags" data-key="TagMode"><option value="keep">Keep all tags</option><option value="clean">Keep main fields only</option><option value="strip">Remove all tags</option></select>
     </div>
     <label class="check"><input type="checkbox" data-key="Recurse"> Include sub-folders (keeps the same folder layout)</label>
     <label class="check"><input type="checkbox" data-key="CoverArt"> Keep cover art</label>

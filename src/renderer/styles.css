@@ -134,3 +134,7 @@ button.toggle:disabled { cursor: default; opacity: 0.6; }
 .panel select:disabled { opacity: 0.55; }
 .panel .check { display: flex; align-items: center; gap: 10px; }
 .chip.off { opacity: 0.45; }
+
+.panel input[type="text"] { height: 36px; }
+.panel .help { font-size: 12px; color: var(--muted); grid-column: 2; }
+.panel [hidden] { display: none; }

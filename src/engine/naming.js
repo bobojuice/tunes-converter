@@ -24,8 +24,8 @@ function trimToBytes(s, maxBytes) {
 }
 
 // Final file-name stem (no extension) for a track, or '' when nothing usable is left.
-function buildName({ artist, title, fallbackBase, outDir }) {
-  const base = artist && title ? `${artist} - ${title}` : fallbackBase;
+function buildName({ artist, title, fallbackBase, outDir, base: given }) {
+  const base = given || (artist && title ? `${artist} - ${title}` : fallbackBase);
   let name = safeName(base);
   if (!name) return '';
   if (RESERVED.test(name)) name = `_${name}`;
@@ -60,4 +60,38 @@ function pickTag(tagSets, key) {
   return '';
 }
 
-module.exports = { joinArtists, safeName, buildName, NameAllocator, pickTag };
+const DEFAULT_TEMPLATE = '{artist} - {title}';
+const PLACEHOLDERS = ['artist', 'title', 'album', 'albumartist', 'track', 'year'];
+
+// A template is plain text plus known {placeholders}; it needs at least one placeholder.
+function validTemplate(t) {
+  if (typeof t !== 'string' || !t.trim() || t.length > 120) return false;
+  const found = [...t.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]);
+  if (!found.length || !found.every((k) => PLACEHOLDERS.includes(k))) return false;
+  return !/[{}]/.test(t.replace(/\{[^{}]*\}/g, ''));
+}
+
+// Fills a template from tag values. Returns '' when any placeholder it uses has no value, so the caller can fall
+// back to the original file name instead of producing a half-empty name.
+function applyTemplate(template, fields) {
+  let missing = false;
+  const out = template.replace(/\{([^{}]*)\}/g, (_, k) => {
+    const v = String(fields[k] || '').trim();
+    if (!v) missing = true;
+    return v;
+  });
+  return missing ? '' : out;
+}
+
+// '3/12' -> '03', '7' -> '07', anything else -> ''
+function trackNumber(v) {
+  const m = /^\s*(\d+)/.exec(String(v || ''));
+  return m ? m[1].padStart(2, '0') : '';
+}
+
+function yearOf(v) {
+  const m = /^\s*(\d{4})/.exec(String(v || ''));
+  return m ? m[1] : '';
+}
+
+module.exports = { DEFAULT_TEMPLATE, PLACEHOLDERS, validTemplate, applyTemplate, trackNumber, yearOf, joinArtists, safeName, buildName, NameAllocator, pickTag };

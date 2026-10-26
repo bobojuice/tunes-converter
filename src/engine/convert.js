@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { run } = require('./proc');
-const { joinArtists, buildName, pickTag } = require('./naming');
+const { joinArtists, buildName, pickTag, applyTemplate, trackNumber, yearOf, DEFAULT_TEMPLATE } = require('./naming');
 const { testQuality } = require('./quality');
 const { FORMATS } = require('./formats');
 
@@ -49,8 +49,15 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const albumArtist = join(pickTag(tagSets, 'album_artist'));
   const keepCover = settings.CoverArt !== false;
   const title = pickTag(tagSets, 'title');
+  const fields = {
+    artist, title, albumartist: albumArtist,
+    album: pickTag(tagSets, 'album'),
+    track: trackNumber(pickTag(tagSets, 'track')),
+    year: yearOf(pickTag(tagSets, 'date') || pickTag(tagSets, 'year'))
+  };
+  const fromTemplate = applyTemplate(settings.NameTemplate || DEFAULT_TEMPLATE, fields);
 
-  const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir });
+  const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir, base: fromTemplate || path.parse(baseName).name });
   if (!stem) return { status: 'FAIL', name: baseName, note: 'empty file name' };
   const { name, duplicate } = allocator.allocate(stem);
   const dupNote = duplicate ? 'duplicate name; ' : '';
@@ -76,19 +83,35 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const isMp3 = fmt === FORMATS.mp3 && audio.codec_name === 'mp3'; // an MP3 stays as is (no second lossy pass)
   const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
   const args = ['-v', 'error', '-y', '-i', file, '-map', '0:a:0'];
-  if (fmt !== FORMATS.opus && keepCover) args.push('-map', '0:v?'); // cover art (the Ogg/Opus container takes none this way)
-  args.push('-map_metadata', '0');
+  const coverOk = keepCover && fmt !== FORMATS.opus && !fmt.noCover; // the Opus and WAV containers take no cover art this way
+  if (coverOk) args.push('-map', '0:v?');
+  const tagMode = settings.TagMode || 'keep';
+  args.push('-map_metadata', tagMode === 'keep' ? '0' : '-1');
   if (isMp3) {
     args.push('-c', 'copy');
   } else {
-    args.push('-c:a', fmt.encoder);
+    const depth = settings.BitDepth === 24 ? 24 : 16;
+    args.push('-c:a', fmt === FORMATS.wav ? (depth === 24 ? 'pcm_s24le' : 'pcm_s16le') : fmt.encoder);
     if (fmt.lossy) args.push('-b:a', `${kbps}k`);
-    if (fmt !== FORMATS.opus && fmt !== FORMATS.flac) args.push('-ar', String(settings.SampleRate));
-    if (fmt !== FORMATS.opus && keepCover) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
+    if (fmt.depth) {
+      // 32-bit float (and other deeper) sources are converted to the chosen depth; 16-bit gets dither.
+      if (fmt === FORMATS.flac) args.push('-sample_fmt', depth === 24 ? 's32' : 's16', ...(depth === 24 ? ['-bits_per_raw_sample', '24'] : []));
+      if (depth === 16) args.push('-af', 'aresample=dither_method=triangular');
+    } else if (fmt !== FORMATS.opus) {
+      args.push('-ar', String(settings.SampleRate));
+    }
+    if (coverOk) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
   }
   if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
-  if (artist) args.push('-metadata', `artist=${artist}`);
-  if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
+  if (fmt === FORMATS.wav && tagMode !== 'strip') args.push('-write_id3v2', '1');
+  if (tagMode === 'keep') {
+    if (artist) args.push('-metadata', `artist=${artist}`);
+    if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
+  } else if (tagMode === 'clean') {
+    // only the main fields, written back explicitly
+    const keep = { artist, album_artist: albumArtist, title, album: fields.album, track: pickTag(tagSets, 'track'), date: pickTag(tagSets, 'date') || pickTag(tagSets, 'year'), genre: pickTag(tagSets, 'genre') };
+    for (const [k, v] of Object.entries(keep)) if (v) args.push('-metadata', `${k}=${v}`);
+  }
   args.push('-f', fmt.muxer, part);
 
   try {
@@ -99,7 +122,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       return { status: 'FAIL', name: baseName, note: lines[lines.length - 1] || 'conversion failed' };
     }
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
-    let note = dupNote + (isMp3 ? 'MP3 kept as is' : fmt.lossy ? `${settings.Bitrate}k` : 'lossless');
+    let note = dupNote + (isMp3 ? 'MP3 kept as is' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${settings.BitDepth === 24 ? 24 : 16}-bit` : 'lossless');
     if (quality && quality.msg) note += ` | ${quality.msg}`;
     return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note };
   } catch (err) {

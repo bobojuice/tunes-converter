@@ -4,7 +4,8 @@
   const BITRATES = [128, 160, 192, 224, 256, 320];
   const MIN_ORDER = [320, 256, 224, 192, 160, 128];
   const MODES = ['off', 'warn', 'skip'];
-  const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', opus: 'Opus' };
+  const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', opus: 'Opus' };
+  const LOSSLESS = ['flac', 'wav'];
   const FORMAT_ORDER = Object.keys(FORMATS);
   const MODE_LABEL = { off: 'Quality check: off', warn: 'Quality check: warn', skip: 'Quality check: skip fakes' };
   const MODE_TIP = {
@@ -45,7 +46,15 @@
     $('chipRecurse').querySelector('.t').textContent = s.Recurse ? 'Subfolders: included' : 'Subfolders: off';
     $('chipRecurse').dataset.on = String(s.Recurse);
     $('chipRecurse').title = 'Also convert music in sub-folders, keeping the same folder layout. Click to change.';
-    $('chipBitrate').querySelector('.t').textContent = s.Format === 'flac' ? 'Lossless' : `${s.Format === 'opus' ? Math.min(s.Bitrate, 256) : s.Bitrate} kbps`;
+    const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
+    $('setName').value = preset ? preset.value : 'custom';
+    for (const el of document.querySelectorAll('#panel [data-show]')) {
+      const kind = el.dataset.show;
+      el.hidden = kind === 'depth' ? !LOSSLESS.includes(s.Format)
+        : kind === 'lossy' ? LOSSLESS.includes(s.Format)
+          : $('setName').value !== 'custom';
+    }
+    $('chipBitrate').querySelector('.t').textContent = LOSSLESS.includes(s.Format) ? `${s.BitDepth}-bit` :`${s.Format === 'opus' ? Math.min(s.Bitrate, 256) : s.Bitrate} kbps`;
     $('chipBitrate').title = 'Output bitrate. Click to change.';
     $('chipRate').querySelector('.t').textContent = `${s.SampleRate / 1000} kHz`;
     $('chipRate').title = 'Output sample rate. Click to change.';
@@ -62,7 +71,7 @@
     $('start').disabled = value;
     $('start').textContent = value ? 'Converting...' : ranOnce ? 'RUN AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
-    for (const el of document.querySelectorAll('#panel [data-key]')) el.disabled = value;
+    for (const el of document.querySelectorAll('#panel [data-key], #setName')) el.disabled = value;
     for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipFormat', 'chipRecurse', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
   }
 
@@ -212,7 +221,21 @@
       $('panel').hidden = !open;
       $('gear').setAttribute('aria-expanded', String(open));
     });
+    $('setName').addEventListener('change', async () => {
+      if ($('setName').value === 'custom') {
+        for (const el of document.querySelectorAll('#panel [data-show="custom"]')) el.hidden = false;
+        $('setNameTemplate').focus();
+      } else {
+        await save({ NameTemplate: $('setName').value });
+      }
+    });
+    $('setNameTemplate').addEventListener('change', async () => {
+      const typed = $('setNameTemplate').value.trim();
+      await save({ NameTemplate: typed });
+      if (settings().NameTemplate !== typed) $('nameHelp').textContent = 'Not accepted. Use only {artist} {title} {album} {albumartist} {track} {year} with your own text around them.';
+    });
     for (const el of document.querySelectorAll('#panel [data-key]')) {
+      if (el.id === 'setNameTemplate') continue;
       el.addEventListener('change', () => {
         const value = el.type === 'checkbox' ? el.checked : el.hasAttribute('data-number') ? Number(el.value) : el.value;
         save({ [el.dataset.key]: value });

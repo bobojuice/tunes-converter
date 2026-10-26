@@ -2,6 +2,9 @@
 const fs = require('fs');
 const path = require('path');
 const { FORMAT_KEYS } = require('./formats');
+const { DEFAULT_TEMPLATE, validTemplate } = require('./naming');
+
+const TAG_MODES = ['keep', 'clean', 'strip']; // keep everything | keep the main fields only | no tags at all
 
 const BITRATES = [128, 160, 192, 224, 256, 320];
 const SAMPLE_RATES = [44100, 48000];
@@ -16,6 +19,9 @@ function defaults(desktopDir) {
     QualityCheck: 'warn',
     MinKbps: 320,
     Format: 'mp3',
+    BitDepth: 16,
+    NameTemplate: DEFAULT_TEMPLATE,
+    TagMode: 'keep',
     Recurse: false,
     CoverArt: true,
     JoinArtists: true,
@@ -37,6 +43,9 @@ function merge(base, raw) {
   if (MODES.includes(raw.QualityCheck)) s.QualityCheck = raw.QualityCheck;
   if (BITRATES.includes(Number(raw.MinKbps))) s.MinKbps = Number(raw.MinKbps);
   if (FORMAT_KEYS.includes(raw.Format)) s.Format = raw.Format;
+  if ([16, 24].includes(Number(raw.BitDepth))) s.BitDepth = Number(raw.BitDepth);
+  if (TAG_MODES.includes(raw.TagMode)) s.TagMode = raw.TagMode;
+  if (validTemplate(raw.NameTemplate)) s.NameTemplate = raw.NameTemplate.trim();
   for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'OpenWhenDone']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }
@@ -65,4 +74,4 @@ function save(file, base, changes) {
   return next;
 }
 
-module.exports = { BITRATES, SAMPLE_RATES, MODES, defaults, merge, load, save };
+module.exports = { TAG_MODES, BITRATES, SAMPLE_RATES, MODES, defaults, merge, load, save };

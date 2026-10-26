@@ -94,6 +94,8 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Settings:** the **Settings** button (top right) has every option, including keeping cover art, full artist names and opening the folder when finished.
 
+**Lossless and DJ use:** choose **WAV** or **FLAC** and a **Bit depth** (16-bit is the most compatible with CDJs). This also fixes 32-bit float rips: they are converted to the depth you pick, with dither at 16-bit. **File names** lets you pick a pattern (Artist - Title, Title, Track - Artist - Title, or your own). **Tags** can keep everything, keep only the main fields, or remove all tags.
+
 **Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click the format chip to choose MP3, AAC (M4A), FLAC or Opus (Opus tops out at 256 kbps); click **Subfolders** to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
 
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
@@ -189,7 +191,10 @@ the app is closed:
 | `SampleRate`   | `44100`             | `44100`, `48000`                         |
 | `QualityCheck` | `warn`              | `off`, `warn`, `skip`                    |
 | `MinKbps`      | `320`               | `128`, `160`, `192`, `224`, `256`, `320` |
-| `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `opus` (click the format chip) |
+| `Format`       | `mp3`               | `mp3`, `m4a`, `flac`, `wav`, `opus` (click the format chip) |
+| `BitDepth`     | `16`                | `16` or `24`; used for `flac` and `wav` (a 32-bit float source is converted down) |
+| `NameTemplate` | `{artist} - {title}` | any text with `{artist}` `{title}` `{album}` `{albumartist}` `{track}` `{year}`; if a tag it uses is missing, the original file name is kept |
+| `TagMode`      | `keep`              | `keep` all tags, `clean` (artist, album artist, title, album, track, date, genre only), `strip` (none) |
 | `CoverArt`     | `true`              | `false` drops embedded cover art |
 | `JoinArtists`  | `true`              | `false` leaves multi-artist tags as they are |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
