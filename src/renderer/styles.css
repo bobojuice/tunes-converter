@@ -251,6 +251,7 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .panel .share .link { font-size: 11.5px; }
 .narrow .panel .share { grid-column: 1; }
 .watch-state { font-size: 10px; letter-spacing: 0.08em; color: var(--green); border: 1px solid var(--green); border-radius: 3px; padding: 0 5px; }
+.watch-state.off { color: var(--amber); border-color: var(--amber); }
 .watch-state[hidden] { display: none; }
 
 /* Narrow layout is chosen in JS from the PHYSICAL window width (see layoutMode in renderer.js), not from a media query:

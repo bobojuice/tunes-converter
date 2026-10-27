@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { EXTENSIONS } = require('./batch');
+const { EXTENSIONS, canon, sameFolder } = require('./batch');
 
 const MAX_DEPTH = 20;
 
@@ -11,10 +11,11 @@ const MAX_DEPTH = 20;
 // handed over afterwards in one list. fs.watch is only a hint to look sooner; if it fails (or is not supported for
 // the folder) a scan every `pollMs` finds the files instead.
 function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false, onFiles, onLog = () => {}, stableMs = 2000, pollMs = 3000, tickMs = 500 }) {
-  const norm = (p) => path.resolve(p).replace(/[\\/]+$/, '');
+  // Canonical keys (symlinks, junctions and 8.3 names resolved) so another spelling of the same place compares equal.
   const fold = (p) => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p);
-  const outAbs = outDir ? fold(norm(outDir)) : '';
-  const inOut = (p) => outAbs && (fold(p) === outAbs || fold(p).startsWith(outAbs + path.sep));
+  const key = (p) => fold(canon(p).replace(/[\\/]+$/, ''));
+  const outAbs = outDir ? key(outDir) : '';
+  const inOut = (p) => { if (!outAbs) return false; const k = key(p); return k === outAbs || k.startsWith(outAbs + path.sep); };
 
   const known = new Set(); // handled, or present before the watch started
   const pending = new Map(); // path -> { size, since }
@@ -36,11 +37,11 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
     return out;
   }
 
-  for (const f of walk(dir, 0, [])) known.add(f);
+  for (const f of walk(dir, 0, [])) known.add(key(f));
 
   function scan() {
     lastScan = Date.now();
-    for (const f of walk(dir, 0, [])) if (!known.has(f) && !pending.has(f)) pending.set(f, { size: -1, since: 0 });
+    for (const f of walk(dir, 0, [])) if (!known.has(key(f)) && !pending.has(f)) pending.set(f, { size: -1, since: 0 });
   }
 
   function check() {
@@ -49,7 +50,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
       let size;
       try { size = fs.statSync(f).size; } catch { pending.delete(f); continue; } // vanished (temporary file)
       if (size !== p.size) { p.size = size; p.since = now; continue; }
-      if (size > 0 && now - p.since >= stableMs) { pending.delete(f); known.add(f); ready.push(f); }
+      if (size > 0 && now - p.since >= stableMs) { pending.delete(f); known.add(key(f)); ready.push(f); }
     }
   }
 
@@ -89,4 +90,16 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
   };
 }
 
-module.exports = { createWatcher };
+// Can the folder watch actually run with these settings? -> { ok, reason } (reason '' when ok or when watching is off)
+function watchPlan(s) {
+  if (!s.WatchFolder) return { ok: false, reason: '' };
+  if (!s.In) return { ok: false, reason: 'songs folder not set' };
+  let isDir = false;
+  try { isDir = fs.statSync(s.In).isDirectory(); } catch { isDir = false; }
+  if (!isDir) return { ok: false, reason: 'songs folder missing' };
+  if (!s.Out) return { ok: false, reason: 'output folder not set' };
+  if (sameFolder(s.In, s.Out)) return { ok: false, reason: 'songs and output folder are the same' };
+  return { ok: true, reason: '' };
+}
+
+module.exports = { createWatcher, watchPlan };

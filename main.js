@@ -4,14 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const settings = require('./src/engine/settings');
 const { findTools, hasMp3Encoder } = require('./src/engine/tools');
-const { runBatch, samePath } = require('./src/engine/batch');
+const { runBatch } = require('./src/engine/batch');
 const { buildReport, writeReport } = require('./src/engine/report');
 const presetshare = require('./src/engine/presetshare');
-const { createWatcher } = require('./src/engine/watcher');
+const { createWatcher, watchPlan } = require('./src/engine/watcher');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
-const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop } = require('./src/engine/guards');
+const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
 const { EXTENSIONS } = require('./src/engine/batch');
 const { fetchLatest } = require('./src/engine/update');
 
@@ -65,7 +65,15 @@ function trusted(event) {
 }
 
 // The shared run: used by START and by the folder watcher. The caller owns the slot (`ctrl`).
-async function executeBatch({ ctrl, s, inputs, resetLog }) {
+// A watch run has no START click waiting for a result, so every way it can end (early return, cancel, error) must still
+// send the window a terminal event; withTerminalEvent guarantees that. START runs behave as before.
+function executeBatch({ ctrl, s, inputs, resetLog, watch = false }) {
+  const emit = (ev) => send('batch:event', ev);
+  if (!watch) return runExecute({ ctrl, s, inputs, resetLog }, emit);
+  return withTerminalEvent(emit, (onEv) => runExecute({ ctrl, s, inputs, resetLog }, onEv));
+}
+
+async function runExecute({ ctrl, s, inputs, resetLog }, emit) {
   const t = await toolState(s);
   if (ctrl.signal.aborted) return { ok: false, cancelled: true };
   if (resetLog) { try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ } }
@@ -74,7 +82,7 @@ async function executeBatch({ ctrl, s, inputs, resetLog }) {
   const onEvent = (ev) => {
     if (ev.type === 'message') appendLog(ev.text);
     if (ev.type === 'result') { results.push(ev); appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`); }
-    send('batch:event', ev);
+    emit(ev);
   };
   const r = await runBatch({ inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal, inputs, onEvent });
   if (s.SaveReport && results.length) saveRunReport(s, results, startedAt, r, onEvent);
@@ -97,8 +105,14 @@ function saveRunReport(s, results, startedAt, r, onEvent) {
 let watcher = null;
 let watchKey = '';
 
-function realOrResolved(p) {
-  try { return fs.realpathSync.native(p); } catch { return path.resolve(p); }
+// What the window shows: is the watch really running, and if the setting is on but it cannot run, why not.
+let watchInfo = { active: false, reason: '' };
+const watchStatus = () => watchInfo;
+
+function setWatchInfo(info) {
+  const changed = info.active !== watchInfo.active || info.reason !== watchInfo.reason;
+  watchInfo = info;
+  if (changed) send('watch:status', watchInfo);
 }
 
 function stopWatcher() {
@@ -109,9 +123,9 @@ function stopWatcher() {
 
 function syncWatcher() {
   const s = current();
-  let ok = false;
-  try { ok = s.WatchFolder && s.In && s.Out && fs.statSync(s.In).isDirectory() && !samePath(realOrResolved(s.In), realOrResolved(s.Out)); } catch { ok = false; }
-  if (!ok) { stopWatcher(); return; }
+  const plan = watchPlan(s);
+  if (!plan.ok) { stopWatcher(); setWatchInfo({ active: false, reason: plan.reason }); return; }
+  setWatchInfo({ active: true, reason: '' });
   const key = JSON.stringify([s.In, s.Out, s.Recurse]);
   if (watcher && key === watchKey) return;
   stopWatcher();
@@ -125,7 +139,7 @@ function syncWatcher() {
       if (!ctrl) return; // cannot happen after isBusy(); the files stay handled rather than looping
       try {
         for (const f of files) send('batch:event', { type: 'message', text: `Watching: new file ${path.basename(f)}`, level: 'info' });
-        await executeBatch({ ctrl, s: current(), inputs: files, resetLog: false });
+        await executeBatch({ ctrl, s: current(), inputs: files, resetLog: false, watch: true });
       } catch (err) {
         send('batch:event', { type: 'message', text: `ERROR: ${err.message}`, level: 'error' });
       } finally {
@@ -146,7 +160,8 @@ function registerIpc() {
       platform: process.platform,
       hasBrew: ['/opt/homebrew/bin/brew', '/usr/local/bin/brew'].some((b) => fs.existsSync(b)),
       version: require('./package.json').version,
-      dataDir: paths().dir
+      dataDir: paths().dir,
+      watch: watchStatus()
     };
   });
 

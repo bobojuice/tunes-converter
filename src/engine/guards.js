@@ -59,4 +59,19 @@ function createSlot() {
   };
 }
 
-module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot };
+// Runs `work(onEvent)` and guarantees the window gets exactly one terminal 'done' event, whatever way the work ends
+// (normal finish, early return, cancelled, exception).
+async function withTerminalEvent(emit, work) {
+  let finished = false;
+  const onEvent = (ev) => { if (ev && ev.type === 'done') finished = true; emit(ev); };
+  try {
+    return await work(onEvent);
+  } finally {
+    if (!finished) {
+      // `synthetic`: not from a finished conversion; the window only uses it to leave its "running" state
+      emit({ type: 'done', summary: 'Stopped.', counts: {}, stopped: true, synthetic: true });
+    }
+  }
+}
+
+module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot, withTerminalEvent };

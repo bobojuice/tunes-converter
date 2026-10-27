@@ -31,6 +31,7 @@
   let etaSecs = null;
 
   const settings = () => state.settings;
+  const watching = () => Boolean(state.settings.WatchFolder && state.watch && state.watch.active);
 
   async function save(changes) {
     const next = await window.tc.updateSettings(changes);
@@ -48,7 +49,11 @@
     const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
     $('setName').value = preset ? preset.value : 'custom';
     renderPresets();
-    $('watchState').hidden = !s.WatchFolder;
+    // WATCHING only while the watch is really running; if it is switched on but cannot run, say why
+    const ws = $('watchState');
+    ws.hidden = !s.WatchFolder;
+    ws.textContent = watching() ? 'WATCHING' : `NOT WATCHING: ${(state.watch && state.watch.reason) || 'folders not ready'}`;
+    ws.classList.toggle('off', !watching());
     for (const el of document.querySelectorAll('#panel [data-show]')) {
       const kind = el.dataset.show;
       el.hidden = kind === 'depth' ? !LOSSLESS.includes(s.Format)
@@ -146,7 +151,7 @@
       $('hubBig').textContent = 'DONE';
       $('count').textContent = `${progIndex} / ${total}`;
     } else {
-      $('hubLabel').textContent = s.WatchFolder ? 'WATCHING' : 'READY';
+      $('hubLabel').textContent = s.WatchFolder && watching() ? 'WATCHING' : 'READY';
       $('hubBig').textContent = SHORT[s.Format];
       $('count').textContent = '';
     }
@@ -444,6 +449,7 @@
       renderMeter();
       renderReadouts();
     } else if (ev.type === 'done') {
+      if (ev.synthetic) { if (watchRun) { phase = 'stopped'; endWatchRun(); } return; } // only releases a watch run that ended without a result
       const c = ev.counts || {};
       phase = ev.stopped ? 'stopped' : (c.OK || 0) + (c.WARN || 0) === 0 && (c.FAIL || 0) > 0 ? 'failed' : 'done';
       etaSecs = null;
@@ -542,6 +548,7 @@
 
     offerFfmpeg(state.ffmpeg);
     window.tc.onBatchEvent(onBatchEvent);
+    window.tc.onWatchStatus((st) => { state.watch = st; render(); });
     window.tc.onDownloadProgress(({ done, total }) => {
       const mb = (n) => (n / 1048576).toFixed(0);
       $('dlStatus').textContent = total ? `Downloading... ${mb(done)} / ${mb(total)} MB` : `Downloading... ${mb(done)} MB`;

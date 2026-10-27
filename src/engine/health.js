@@ -2,6 +2,7 @@
 const { run } = require('./proc');
 
 const MONO_DB = -80; // a left/right difference quieter than this means both channels are the same
+const TAIL_BYTES = 256 * 1024; // astats values are cumulative (reset=0), so only the last printed values matter
 const DURATION_SLACK = 2; // seconds the decoded length may differ from the stated length
 
 // Last value of a key printed by ametadata (stdout).
@@ -20,8 +21,9 @@ async function checkHealth({ ffmpeg, file, audio, format, signal }) {
   const chain = (stereo ? 'pan=mono|c0=c0-c1,' : '') + 'astats=metadata=1:reset=0,'
     + 'ametadata=print:key=lavfi.astats.Overall.Peak_level:file=-,'
     + 'ametadata=print:key=lavfi.astats.Overall.Number_of_samples:file=-';
-  const r = await run(ffmpeg, ['-v', 'error', '-nostats', '-i', file, '-map', '0:a:0', '-vn', '-af', chain, '-f', 'null', '-'], { signal });
+  const r = await run(ffmpeg, ['-v', 'error', '-nostats', '-i', file, '-map', '0:a:0', '-vn', '-af', chain, '-f', 'null', '-'], { signal, tailBytes: TAIL_BYTES });
   if (r.aborted) return { cancelled: true };
+  if (r.truncated) return { flags: [], msg: '' }; // stopped by a size limit, not by a problem in the file: never call it corrupt
   const flags = [];
   const rate = Number(audio.sample_rate) || 0;
   if (rate && rate < 44100) flags.push(`low sample rate ${rate} Hz`);

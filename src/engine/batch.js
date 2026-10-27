@@ -137,4 +137,4 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
   return { ok: true, stopped, counts, summary };
 }
 
-module.exports = { runBatch, summarise, samePath, EXTENSIONS };
+module.exports = { runBatch, summarise, samePath, canon, sameFolder, EXTENSIONS };

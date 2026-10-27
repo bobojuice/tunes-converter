@@ -6,7 +6,9 @@ const { spawn } = require('child_process');
 // `binary: true` returns stdout as one Buffer; `maxBytes` stops runaway output.
 const MAX_STDERR = 256 * 1024;
 
-function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, stdinNull = true } = {}) {
+// `tailBytes`: keep only about the last that many bytes of stdout and never stop the process for output size
+// (for long runs whose stdout is cumulative, where only the final values matter).
+function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, stdinNull = true, tailBytes = 0 } = {}) {
   return new Promise((resolve) => {
     if (signal && signal.aborted) return resolve({ code: null, stdout: binary ? Buffer.alloc(0) : '', stderr: '', aborted: true, truncated: false });
     let child;
@@ -26,6 +28,12 @@ function run(exe, args, { signal, binary = false, maxBytes = 64 * 1024 * 1024, s
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
     child.stdout.on('data', (d) => {
+      if (tailBytes) {
+        out.push(d);
+        size += d.length;
+        while (size > tailBytes && out.length > 1) size -= out.shift().length;
+        return;
+      }
       size += d.length;
       if (size > maxBytes) { truncated = true; kill(); return; }
       out.push(d);

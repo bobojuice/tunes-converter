@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('tc', {
     ipcRenderer.on('batch:event', h);
     return () => ipcRenderer.removeListener('batch:event', h);
   },
+  onWatchStatus: (cb) => {
+    const h = (_e, st) => cb(st);
+    ipcRenderer.on('watch:status', h);
+    return () => ipcRenderer.removeListener('watch:status', h);
+  },
   onDownloadProgress: (cb) => {
     const h = (_e, p) => cb(p);
     ipcRenderer.on('ffmpeg:progress', h);
