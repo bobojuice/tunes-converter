@@ -124,7 +124,7 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     counts[res.status] += 1;
     if (res.clipped) counts.CLIPPED += 1;
     if (res.duplicate) counts.DUPLICATE += 1;
-    onEvent({ type: 'result', status: res.status, name: files[i].rel ? path.join(files[i].rel, res.name) : res.name, note: res.note });
+    onEvent({ type: 'result', status: res.status, name: files[i].rel ? path.join(files[i].rel, res.name) : res.name, note: res.note, peak: typeof res.peakDb === 'number' ? res.peakDb : null });
     onEvent({ type: 'progress', index: i + 1, total: files.length, file: label });
   }
 

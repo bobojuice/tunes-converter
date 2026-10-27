@@ -1,0 +1,8 @@
+Fonts in this folder are bundled so the app works offline.
+
+- Barlow (400, 500, 600, 700) - Copyright The Barlow Project Authors (Jeremy Tribby)
+- Barlow Condensed (500, 600) - Copyright The Barlow Project Authors (Jeremy Tribby)
+- IBM Plex Mono (400, 500) - Copyright IBM Corp.
+
+All three are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+Source: the @fontsource npm packages (https://fontsource.org), latin subset, woff2.

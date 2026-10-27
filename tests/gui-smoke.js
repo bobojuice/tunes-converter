@@ -24,7 +24,7 @@ start().then(async (win) => {
       fs.writeFileSync(process.env.TC_SHOT_IDLE, (await win.webContents.capturePage()).toPNG());
     }
     if (process.env.TC_CLICK_CHIPS) {
-      await js("document.getElementById('chipMin').click()");
+      await js("document.getElementById('roQuality').click()"); // cycles the quality check mode
       await sleep(300);
     }
     await js("document.getElementById('start').click()");

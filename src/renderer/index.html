@@ -2,26 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tunes Converter</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <main class="app">
+  <i class="screw tl" aria-hidden="true"></i><i class="screw tr" aria-hidden="true"></i><i class="screw bl" aria-hidden="true"></i><i class="screw br" aria-hidden="true"></i>
 
   <header class="head">
-    <div class="logo" aria-hidden="true">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1a12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-    </div>
-    <div>
-      <h1>Tunes Converter</h1>
-      <p class="sub">Pick a folder, press start, get tidy music files.</p>
-    </div>
-    <button id="gear" class="btn ghost gear" type="button" aria-expanded="false" aria-controls="panel" title="Settings">Settings</button>
+    <h1>Tunes Converter</h1>
+    <span class="grow"></span>
+    <button id="gear" class="btn ghost gear" type="button" aria-expanded="false" aria-controls="panel" title="Menu: all settings">MENU</button>
   </header>
 
-  <section id="panel" class="card panel" hidden aria-label="Settings">
+  <section id="panel" class="card panel" hidden aria-label="Menu">
     <div class="presets">
       <label for="presetList">Presets</label>
       <select id="presetList"></select>
@@ -75,57 +71,109 @@
     </div>
   </section>
 
-  <section class="card folders">
-    <div class="field">
-      <label for="inDir">SONGS FOLDER</label>
-      <div class="pick">
-        <input id="inDir" type="text" spellcheck="false" autocomplete="off">
-        <button id="browseIn" class="btn ghost" type="button">Browse</button>
+  <section class="screen" aria-label="Display">
+    <div class="paths">
+      <div class="path">
+        <label for="inDir">FROM</label>
+        <input id="inDir" type="text" spellcheck="false" autocomplete="off" aria-label="Songs folder" title="Songs folder">
+        <button id="browseIn" class="btn mini" type="button">Browse</button>
+      </div>
+      <div class="path">
+        <label for="outDir">TO</label>
+        <input id="outDir" type="text" spellcheck="false" autocomplete="off" aria-label="Save to folder" title="Save to folder">
+        <button id="browseOut" class="btn mini" type="button">Browse</button>
       </div>
     </div>
-    <div class="field">
-      <label for="outDir">SAVE TO</label>
-      <div class="pick">
-        <input id="outDir" type="text" spellcheck="false" autocomplete="off">
-        <button id="browseOut" class="btn ghost" type="button">Browse</button>
-      </div>
+    <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
+
+    <canvas id="wave" class="wave" role="img" aria-label="Waveform showing conversion progress"></canvas>
+
+    <div class="overview">
+      <div class="ov-strip"><canvas id="mini" class="minicv" aria-hidden="true"></canvas></div>
+      <div id="ruler" class="ruler" aria-hidden="true"></div>
+      <div id="markers" class="markers"></div>
+      <span id="ovHead" class="ov-head" aria-hidden="true"></span>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="ro-l">TRACK</div><div id="roTrack" class="ro-v">--/--</div></div>
+      <div class="ro"><div class="ro-l">FORMAT</div><div id="roFormat" class="ro-v">MP3 320</div></div>
+      <div class="ro-time"><div class="ro-l">TIME LEFT</div><div id="roTime" class="time">--:--</div></div>
+      <button id="roQuality" class="ro ro-btn" type="button"><span class="ro-l">QUALITY</span><span id="roQualityV" class="ro-v">OFF</span></button>
+      <div class="ro"><div class="ro-l">FLAGS</div><div id="roFlags" class="ro-v">0</div></div>
     </div>
   </section>
-
-  <div class="chips" id="chips">
-    <button id="chipBitrate" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
-    <button id="chipRate" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
-    <button id="chipFormat" class="chip toggle" type="button"><span class="dot"></span><span class="t"></span></button>
-    <button id="chipRecurse" class="chip toggle" type="button"><span class="t"></span></button>
-    <span id="chipJoin" class="chip"><span class="dot"></span>Full artist names</span>
-    <span id="chipCover" class="chip"><span class="dot"></span>Cover art kept</span>
-    <span class="chip"><span class="dot"></span>Originals untouched</span>
-  </div>
-  <div class="chips">
-    <button id="chipMode" class="chip toggle" type="button"><span class="t"></span></button>
-    <button id="chipMin" class="chip toggle" type="button"><span class="t"></span></button>
-  </div>
 
   <div id="dropped" class="dropped" hidden>
     <span id="droppedText"></span>
     <button id="droppedClear" class="link" type="button">Use the folder instead</button>
   </div>
 
-  <div class="actions">
-    <button id="start" class="btn primary" type="button">START</button>
-    <button id="stop" class="btn ghost" type="button" disabled>Stop</button>
-    <span class="grow"></span>
-    <button id="openOut" class="btn ghost wide" type="button">Open output folder</button>
-  </div>
+  <section class="deck">
+    <div class="controls">
+      <div class="sec"><span>OUTPUT FORMAT</span><i></i></div>
+      <div id="pads" class="pads">
+        <button type="button" class="pad" data-fmt="mp3"><span class="led"></span>MP3</button>
+        <button type="button" class="pad" data-fmt="m4a"><span class="led"></span>AAC</button>
+        <button type="button" class="pad" data-fmt="flac"><span class="led"></span>FLAC</button>
+        <button type="button" class="pad" data-fmt="wav"><span class="led"></span>WAV</button>
+        <button type="button" class="pad" data-fmt="aiff"><span class="led"></span>AIFF</button>
+        <button type="button" class="pad" data-fmt="opus"><span class="led"></span>OPUS</button>
+      </div>
 
-  <div class="progress">
-    <div class="line"><span id="status" role="status" aria-live="polite">Ready.</span><span id="count">0 / 0</span></div>
-    <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="track"><div id="fill" class="fill"></div></div>
-  </div>
+      <div class="sec"><span>DEPTH &amp; LEVEL</span><i></i></div>
+      <div class="level">
+        <div class="knob-wrap">
+          <button id="knob" class="knob" type="button" aria-label="Bit depth">
+            <span id="knobTicks" class="knob-ticks" aria-hidden="true"></span>
+            <span class="cap"></span>
+            <span id="knobPtr" class="ptr"></span>
+            <span id="knobVal" class="kval"></span>
+          </button>
+          <span id="knobLo" class="klo" aria-hidden="true">16</span>
+          <span id="knobHi" class="khi" aria-hidden="true">24</span>
+        </div>
+        <div class="meter-box">
+          <div class="meter-label"><span id="peakLabel">PEAK OF LAST TRACK</span><span id="peakVal" class="pv"></span></div>
+          <div id="meter" class="meter" role="img" aria-label="Peak level of the last track"></div>
+        </div>
+      </div>
+
+      <div class="sec"><span>OPTIONS</span><i></i></div>
+      <div class="opts">
+        <button type="button" class="opt" data-opt="CoverArt"><span class="led"></span>COVER ART</button>
+        <button type="button" class="opt" data-opt="JoinArtists"><span class="led"></span>FULL NAMES</button>
+        <button type="button" class="opt" data-opt="Recurse"><span class="led"></span>SUBFOLDERS</button>
+        <button type="button" class="opt" data-opt="ClipCheck"><span class="led"></span>CLIP CHECK</button>
+      </div>
+    </div>
+
+    <div class="platter-col">
+      <div id="track" class="platter" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="ring-mask"></div>
+        <div class="deck-face"></div>
+        <div class="marker"><span></span></div>
+        <div class="hub">
+          <span id="hubLabel" class="hub-l">READY</span>
+          <span id="hubBig" class="hub-big">MP3</span>
+          <span id="count" class="hub-c">0 / 0</span>
+        </div>
+        <div id="fill" class="fill" aria-hidden="true"></div>
+      </div>
+      <div class="actions">
+        <button id="start" class="ringbtn go" type="button" aria-label="Start converting">START</button>
+        <button id="stop" class="ringbtn halt" type="button" aria-label="Stop converting" disabled>STOP</button>
+        <button id="openOut" class="btn ghost wide" type="button">OPEN FOLDER</button>
+      </div>
+    </div>
+  </section>
 
   <section class="card log" aria-label="Conversion log">
-    <div id="empty" class="empty">Conversion log appears here.</div>
-    <div id="log" class="lines" hidden></div>
+    <div class="log-head" aria-hidden="true"><span>#</span><span>STATUS</span><span>TRACK</span><span>NOTE</span></div>
+    <div class="log-body">
+      <div id="empty" class="empty">Conversion log appears here.</div>
+      <div id="log" class="lines" hidden></div>
+    </div>
   </section>
 
   <footer class="foot"><span id="version"></span><span id="dataDir" class="grow"></span><span id="updateMsg"></span><button id="update" class="link" type="button">Check for updates</button><button id="help" class="link" type="button">Help</button></footer>

@@ -175,6 +175,7 @@ test('clipping: flags a squashed track and leaves a quiet one alone, only when s
   assert.match(on.results.find((x) => /Loud/.test(x.name)).note, /possible clipping: \d+ samples/);
   assert.doesNotMatch(on.results.find((x) => /Quiet/.test(x.name)).note, /clipping|dBFS/);
   assert.match(on.summary, /1 with clipping/);
+  assert.equal(typeof on.results.find((x) => /Loud/.test(x.name)).peak, 'number', 'the result carries the measured peak');
   const off = await run(inDir, path.join(tmp, 'o-clip-off'), { ClipCheck: false });
   assert.equal(off.counts.CLIPPED, 0);
 });

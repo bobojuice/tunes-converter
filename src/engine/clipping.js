@@ -20,12 +20,13 @@ function describeClipping(m) {
   return '';
 }
 
-// -> { cancelled } | { msg } ('' when fine or could not be measured)
+// -> { cancelled } | { msg, peakDb } (msg '' when fine or could not be measured; peakDb null when not measured)
 async function checkClipping({ ffmpeg, file, signal }) {
   const r = await run(ffmpeg, ['-hide_banner', '-nostats', '-i', file, '-map', '0:a:0', '-vn', '-af', 'astats', '-f', 'null', '-'], { signal });
   if (r.aborted) return { cancelled: true };
-  if (r.code !== 0) return { msg: '' };
-  return { msg: describeClipping(parseAstats(r.stderr)) };
+  if (r.code !== 0) return { msg: '', peakDb: null };
+  const m = parseAstats(r.stderr);
+  return { msg: describeClipping(m), peakDb: m && Number.isFinite(m.peakDb) ? m.peakDb : null };
 }
 
 module.exports = { parseAstats, describeClipping, checkClipping };

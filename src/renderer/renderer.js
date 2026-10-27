@@ -2,18 +2,18 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const BITRATES = [128, 160, 192, 224, 256, 320];
-  const MIN_ORDER = [320, 256, 224, 192, 160, 128];
   const MODES = ['off', 'warn', 'skip'];
   const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'Opus' };
   const LOSSLESS = ['flac', 'wav', 'aiff'];
   const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode'];
-  const FORMAT_ORDER = Object.keys(FORMATS);
-  const MODE_LABEL = { off: 'Quality check: off', warn: 'Quality check: warn', skip: 'Quality check: skip fakes' };
+  const SHORT = { mp3: 'MP3', m4a: 'AAC', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'OPUS' };
+  const MODE_LABEL = { off: 'OFF', warn: 'WARN', skip: 'SKIP' };
   const MODE_TIP = {
-    off: 'No quality check (fastest). Click to change.',
-    warn: 'Convert everything but flag low-quality files. Click to change.',
-    skip: 'Do not convert files below the minimum. Click to change.'
+    off: 'Quality check: off (fastest). Click to change.',
+    warn: 'Quality check: convert everything but flag low-quality files. Click to change.',
+    skip: 'Quality check: do not convert files below the minimum. Click to change.'
   };
+  const COL = { blue: '#2EA7FF', dim: '#1C6FA8', orange: '#FF8A1F', red: '#FF5C7A', pink: '#FF7AD9' };
   const HELP_URL = 'https://github.com/bobojuice/tunes-converter/blob/main/docs/HOWTO.md';
 
   let state = null;
@@ -22,31 +22,29 @@
   let droppedCount = 0;
   let runStart = 0;
   let ranOnce = false;
+  let phase = 'idle'; // idle | running | done
+  let progIndex = 0;
+  let progTotal = 0;
+  let resultCount = 0;
+  let flags = [];
+  let lastPeak = null;
+  let etaSecs = null;
 
   const settings = () => state.settings;
 
   async function save(changes) {
     const next = await window.tc.updateSettings(changes);
     if (next) state.settings = next;
-    renderChips();
+    render();
   }
 
-  function renderChips() {
+  function render() {
     const s = settings();
     for (const el of document.querySelectorAll('#panel [data-key]')) {
       const v = s[el.dataset.key];
       if (el.type === 'checkbox') el.checked = Boolean(v);
       else el.value = String(v);
     }
-    $('chipCover').classList.toggle('off', !s.CoverArt);
-    $('chipCover').lastChild.textContent = s.CoverArt ? 'Cover art kept' : 'Cover art removed';
-    $('chipJoin').classList.toggle('off', !s.JoinArtists);
-    $('chipJoin').lastChild.textContent = s.JoinArtists ? 'Full artist names' : 'Artist tags as is';
-    $('chipFormat').querySelector('.t').textContent = FORMATS[s.Format];
-    $('chipFormat').title = 'Output format. Click to change.';
-    $('chipRecurse').querySelector('.t').textContent = s.Recurse ? 'Subfolders: included' : 'Subfolders: off';
-    $('chipRecurse').dataset.on = String(s.Recurse);
-    $('chipRecurse').title = 'Also convert music in sub-folders, keeping the same folder layout. Click to change.';
     const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
     $('setName').value = preset ? preset.value : 'custom';
     renderPresets();
@@ -56,17 +54,113 @@
         : kind === 'lossy' ? LOSSLESS.includes(s.Format)
           : $('setName').value !== 'custom';
     }
-    $('chipBitrate').querySelector('.t').textContent = LOSSLESS.includes(s.Format) ? `${s.BitDepth}-bit` :`${s.Format === 'opus' ? Math.min(s.Bitrate, 256) : s.Bitrate} kbps`;
-    $('chipBitrate').title = 'Output bitrate. Click to change.';
-    $('chipRate').querySelector('.t').textContent = `${s.SampleRate / 1000} kHz`;
-    $('chipRate').title = 'Output sample rate. Click to change.';
-    $('chipRate').hidden = LOSSLESS.includes(s.Format); // WAV/FLAC keep the source sample rate
-    $('chipMode').querySelector('.t').textContent = MODE_LABEL[s.QualityCheck];
-    $('chipMode').dataset.mode = s.QualityCheck;
-    $('chipMode').title = MODE_TIP[s.QualityCheck];
-    $('chipMin').querySelector('.t').textContent = `Minimum: ${s.MinKbps} kbps`;
-    $('chipMin').dataset.dim = String(s.QualityCheck === 'off');
-    $('chipMin').title = 'Lowest real quality you accept (judged from the audio, not the file label). Click to change.';
+    renderControls();
+    renderReadouts();
+    renderMeter();
+    drawAll();
+  }
+
+  function bitrateList(fmt) { return fmt === 'opus' ? BITRATES.filter((b) => b <= 256) : BITRATES; }
+  function shownBitrate(s) { return s.Format === 'opus' ? Math.min(s.Bitrate, 256) : s.Bitrate; }
+
+  function renderControls() {
+    const s = settings();
+    for (const pad of document.querySelectorAll('#pads .pad')) pad.setAttribute('aria-pressed', String(pad.dataset.fmt === s.Format));
+    for (const opt of document.querySelectorAll('.opt')) {
+      const on = Boolean(s[opt.dataset.opt]);
+      opt.setAttribute('aria-pressed', String(on));
+    }
+    $('roQualityV').textContent = MODE_LABEL[s.QualityCheck];
+    $('roQuality').title = MODE_TIP[s.QualityCheck];
+    $('roQuality').setAttribute('aria-label', MODE_TIP[s.QualityCheck]);
+    // knob: bit depth for lossless formats, bitrate for lossy ones
+    const lossless = LOSSLESS.includes(s.Format);
+    const values = lossless ? [16, 24] : bitrateList(s.Format);
+    const cur = lossless ? s.BitDepth : shownBitrate(s);
+    const at = Math.max(0, values.indexOf(cur));
+    const frac = lossless ? (at === 0 ? 1 / 3 : 2 / 3) : values.length > 1 ? at / (values.length - 1) : 0;
+    const ang = -135 + frac * 270;
+    $('knobPtr').style.setProperty('--ang', ang + 'deg');
+    $('knobVal').textContent = String(cur);
+    $('knobLo').textContent = String(values[0]);
+    $('knobHi').textContent = String(values[values.length - 1]);
+    const label = lossless ? `Bit depth ${cur}` : `Bitrate ${cur} kbps`;
+    $('knob').setAttribute('aria-label', `${label}. Click to change.`);
+    $('knob').title = `${label}. Click to change.`;
+    const ticks = $('knobTicks');
+    if (!ticks.childNodes.length) {
+      for (let i = 0; i < 9; i++) {
+        const t = document.createElement('b');
+        const a = ((-135 + i * 33.75) * Math.PI) / 180;
+        t.style.left = `${Math.round(40 + 38 * Math.sin(a) - 2)}px`;
+        t.style.top = `${Math.round(40 - 38 * Math.cos(a) - 2)}px`;
+        ticks.appendChild(t);
+      }
+    }
+    const lit = Math.round((ang + 135) / 33.75);
+    Array.from(ticks.children).forEach((t, i) => t.classList.toggle('on', i === lit));
+  }
+
+  function formatReadout() {
+    const s = settings();
+    return LOSSLESS.includes(s.Format) ? `${SHORT[s.Format]} ${s.BitDepth}` : `${SHORT[s.Format]} ${shownBitrate(s)}`;
+  }
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  function renderReadouts() {
+    const s = settings();
+    const total = progTotal;
+    const cur = Math.min(progIndex + 1, total);
+    $('roTrack').textContent = phase === 'idle' ? '--/--' : phase === 'done' ? `${pad2(Math.min(progIndex, total))}/${pad2(total)}` : `${pad2(cur)}/${pad2(total)}`;
+    $('roFormat').textContent = formatReadout();
+    if (phase === 'running' && etaSecs !== null) {
+      $('roTime').textContent = `${pad2(Math.floor(etaSecs / 60))}:${pad2(etaSecs % 60)}`;
+    } else {
+      $('roTime').textContent = phase === 'done' ? '00:00' : '--:--';
+    }
+    $('roFlags').textContent = String(flags.length);
+    $('roFlags').classList.toggle('hot', flags.length > 0);
+    // platter
+    const pct = total ? Math.round((progIndex / total) * 100) : 0;
+    const p = phase === 'idle' ? 0 : pct;
+    $('track').style.setProperty('--p', String(p));
+    $('track').classList.toggle('idle', phase === 'idle');
+    $('track').setAttribute('aria-valuenow', String(p));
+    $('fill').style.width = `${p}%`;
+    if (phase === 'running') {
+      $('hubLabel').textContent = 'CONVERTING';
+      $('hubBig').textContent = `${pct}%`;
+      $('count').textContent = `${cur} / ${total}`;
+    } else if (phase === 'done') {
+      $('hubLabel').textContent = 'FINISHED';
+      $('hubBig').textContent = 'DONE';
+      $('count').textContent = `${progIndex} / ${total}`;
+    } else {
+      $('hubLabel').textContent = 'READY';
+      $('hubBig').textContent = SHORT[s.Format];
+      $('count').textContent = '';
+    }
+  }
+
+  // ---- peak meter: 20 segments (13 green, 4 amber, 3 red), -30 dB .. 0 dB ----
+  function renderMeter() {
+    const box = $('meter');
+    if (!box.childNodes.length) {
+      for (let i = 0; i < 20; i++) {
+        const seg = document.createElement('i');
+        seg.className = i < 13 ? 'g' : i < 17 ? 'a' : 'r';
+        box.appendChild(seg);
+      }
+    }
+    const off = !settings().ClipCheck;
+    let lit = 0;
+    if (!off && lastPeak !== null) lit = Math.round(Math.max(0, Math.min(1, (lastPeak + 30) / 30)) * 20);
+    Array.from(box.children).forEach((seg, i) => seg.classList.toggle('on', i < lit));
+    $('peakLabel').textContent = off ? 'CLIP CHECK OFF' : 'PEAK OF LAST TRACK';
+    const txt = off ? '' : lastPeak === null ? '--' : `${lastPeak > 0 ? '+' : ''}${lastPeak.toFixed(1)} dB`;
+    $('peakVal').textContent = txt;
+    box.setAttribute('aria-label', off ? 'Clip check is off' : lastPeak === null ? 'No peak measured yet' : `Peak of last track ${txt}`);
   }
 
   function renderPresets(selected) {
@@ -104,11 +198,148 @@
   function setRunning(value) {
     running = value;
     $('start').disabled = value;
-    $('start').textContent = value ? 'Converting...' : ranOnce ? 'RUN AGAIN' : 'START';
+    $('start').textContent = ranOnce && !value ? 'AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
     for (const el of document.querySelectorAll('#panel [data-key], #setName, #presetList, #presetName, #presetSave')) el.disabled = value;
     $('presetDelete').disabled = value || !$('presetList').value;
-    for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'chipFormat', 'chipRecurse', 'chipBitrate', 'chipRate', 'chipMode', 'chipMin']) $(id).disabled = value;
+    for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'knob', 'roQuality']) $(id).disabled = value;
+    for (const el of document.querySelectorAll('#pads .pad, .opt')) el.disabled = value;
+  }
+
+  // ---- screen: waveform, overview strip ----
+  const rnd = (k) => { const x = Math.sin(k * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  const shape = (i) => {
+    const env = 0.3 + 0.7 * Math.abs(Math.sin(i * 0.085 + 0.4));
+    const hit = rnd(i) > 0.78 ? 1 : 0.18 + 0.5 * rnd(i + 99);
+    return env * hit;
+  };
+  const WAVE_BARS = 150;
+  const MINI_BARS = 120;
+
+  function fitCanvas(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    if (!w || !h) return null;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+    }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx, w, h };
+  }
+
+  function playFraction() {
+    if (phase === 'idle') return 0;
+    return progTotal ? Math.min(1, progIndex / progTotal) : phase === 'done' ? 1 : 0;
+  }
+
+  function drawWave() {
+    const f = fitCanvas($('wave'));
+    if (!f) return;
+    const { ctx, w, h } = f;
+    const p = playFraction();
+    const idle = phase === 'idle';
+    for (let i = 0; i < 25; i++) {
+      ctx.fillStyle = i % 4 === 0 ? COL.red : '#6B8A92';
+      const x = Math.round((i / 24) * (w - 1));
+      ctx.fillRect(x, 0, 1, 6);
+      ctx.fillRect(x, h - 6, 1, 6);
+    }
+    const slot = w / WAVE_BARS;
+    const cy = h / 2;
+    for (let i = 0; i < WAVE_BARS; i++) {
+      const v = shape(i);
+      const bh = Math.round(8 + v * 80);
+      const x = i * slot + 0.5;
+      const bw = Math.max(1, slot - 1);
+      ctx.globalAlpha = !idle && i < WAVE_BARS * p ? 1 : 0.28;
+      ctx.fillStyle = v > 0.45 ? COL.blue : COL.dim;
+      ctx.beginPath();
+      ctx.moveTo(x + bw / 2, cy - bh / 2);
+      ctx.lineTo(x + bw, cy);
+      ctx.lineTo(x + bw / 2, cy + bh / 2);
+      ctx.lineTo(x, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (!idle) {
+      ctx.fillStyle = COL.orange;
+      ctx.fillRect(Math.min(w - 2, Math.max(0, p * w - 1)), 0, 2, h);
+    }
+  }
+
+  function drawMini() {
+    const f = fitCanvas($('mini'));
+    if (!f) return;
+    const { ctx, w, h } = f;
+    const p = playFraction();
+    const idle = phase === 'idle';
+    const slot = w / MINI_BARS;
+    for (let i = 0; i < MINI_BARS; i++) {
+      const bh = Math.round(4 + shape(i * 1.25) * 22);
+      ctx.globalAlpha = !idle && i < MINI_BARS * p ? 0.95 : 0.3;
+      ctx.fillStyle = COL.blue;
+      ctx.fillRect(i * slot, h - bh, Math.max(1, slot - 1), bh);
+    }
+    ctx.globalAlpha = 1;
+    const head = $('ovHead');
+    head.hidden = idle;
+    head.style.left = `${(p * 100).toFixed(2)}%`;
+  }
+
+  function renderRuler() {
+    const ruler = $('ruler');
+    const total = progTotal;
+    const key = `${total}`;
+    if (ruler.dataset.key === key) return;
+    ruler.dataset.key = key;
+    ruler.textContent = '';
+    if (!total) return;
+    const step = Math.max(1, Math.ceil(total / 12));
+    for (let n = 1; n <= total; n += step) {
+      const s = document.createElement('span');
+      s.textContent = String(n);
+      ruler.appendChild(s);
+    }
+  }
+
+  function addFlag(res) {
+    const note = `${res.note || ''}`;
+    let color = null;
+    let why = '';
+    if (/clipping|over 0|dBFS/i.test(note)) { color = COL.red; why = 'clipping'; }
+    else if (/duplicate/i.test(note)) { color = COL.orange; why = 'duplicate'; }
+    else if (['WARN', 'LOW', 'FAKE'].includes(res.status)) { color = COL.pink; why = `quality ${res.status}`; }
+    if (!color) return;
+    const n = flags.length;
+    flags.push({ at: resultCount - 1, color });
+    const m = document.createElement('span');
+    m.className = 'flag';
+    m.style.background = color;
+    m.textContent = String.fromCharCode(65 + (n % 26));
+    m.title = `${m.textContent}: track ${resultCount} - ${why}`;
+    m.dataset.at = String(resultCount - 1);
+    $('markers').appendChild(m);
+    placeFlags();
+  }
+  function placeFlags() {
+    const total = Math.max(progTotal, resultCount, 1);
+    for (const m of $('markers').children) m.style.left = `${((Number(m.dataset.at) + 0.5) / total * 100).toFixed(2)}%`;
+  }
+  function clearFlags() {
+    flags = [];
+    $('markers').textContent = '';
+  }
+
+  function drawAll() {
+    renderRuler();
+    drawWave();
+    drawMini();
+    placeFlags();
   }
 
   // ---- log ----
@@ -131,19 +362,19 @@
   function addResult({ status, name, note }) {
     const row = document.createElement('div');
     row.className = 'row-log';
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = pad2(resultCount);
     const tag = document.createElement('span');
     tag.className = `tag ${status.toLowerCase()}`;
     tag.textContent = status;
     const body = document.createElement('span');
     body.className = 'body';
     body.textContent = name || '';
-    if (note) {
-      const n = document.createElement('span');
-      n.className = 'note';
-      n.textContent = `  ${note}`;
-      body.appendChild(n);
-    }
-    row.append(tag, body);
+    const n = document.createElement('span');
+    n.className = 'note';
+    n.textContent = note || '';
+    row.append(num, tag, body, n);
     addLine(row);
   }
   function clearLog() {
@@ -153,15 +384,13 @@
   }
 
   function setProgress(index, total) {
-    const pct = total ? Math.round((index / total) * 100) : 0;
-    $('fill').style.width = `${pct}%`;
-    $('track').setAttribute('aria-valuenow', String(pct));
-    let eta = '';
-    if (running && index > 0 && index < total) {
-      const secs = Math.round(((Date.now() - runStart) / index) * (total - index) / 1000);
-      eta = secs >= 90 ? ` - about ${Math.round(secs / 60)} min left` : ` - about ${Math.max(secs, 5)} s left`;
-    }
-    $('count').textContent = `${index} / ${total}${eta}`;
+    progIndex = index;
+    progTotal = total;
+    etaSecs = null;
+    // same estimate as before: average time per finished track times the tracks left
+    if (running && index > 0 && index < total) etaSecs = Math.max(Math.round(((Date.now() - runStart) / index) * (total - index) / 1000), 5);
+    renderReadouts();
+    drawAll();
   }
 
   function onBatchEvent(ev) {
@@ -170,10 +399,20 @@
       if (ev.level === 'summary' || ev.level === 'error') $('status').textContent = ev.text;
     } else if (ev.type === 'progress') {
       setProgress(ev.index, ev.total);
-      if (ev.text) $('status').textContent = ev.text;
+      // the screen title is the file being converted
+      if (ev.text) $('status').textContent = /^Converting \d+ of/.test(ev.text) && ev.file ? ev.file : ev.text;
     } else if (ev.type === 'result') {
+      resultCount += 1;
       addResult(ev);
+      addFlag(ev);
+      if (typeof ev.peak === 'number') lastPeak = ev.peak;
+      renderMeter();
+      renderReadouts();
     } else if (ev.type === 'done') {
+      phase = 'done';
+      etaSecs = null;
+      renderReadouts();
+      drawAll();
       $('status').textContent = ev.summary;
       if (settings().OpenWhenDone && !ev.stopped) window.tc.openFolder('out');
     }
@@ -261,7 +500,7 @@
     $('version').textContent = `v${state.version}`;
     $('dataDir').textContent = state.dataDir;
     $('dataDir').title = `Settings and log are stored in ${state.dataDir}`;
-    renderChips();
+    render();
     renderBanner(state.ffmpeg);
 
     offerFfmpeg(state.ffmpeg);
@@ -283,10 +522,11 @@
     $('outDir').addEventListener('change', () => save({ Out: $('outDir').value }));
 
     const cycle = (list, value) => list[(list.indexOf(value) + 1) % list.length];
-    $('chipBitrate').addEventListener('click', () => {
-      // For WAV/FLAC this chip shows the bit depth, so it changes the bit depth, not the (hidden) bitrate.
-      if (LOSSLESS.includes(settings().Format)) save({ BitDepth: settings().BitDepth === 16 ? 24 : 16 });
-      else save({ Bitrate: cycle(BITRATES.slice().reverse(), settings().Bitrate) });
+    $('knob').addEventListener('click', () => {
+      const s = settings();
+      // lossless formats: the knob changes the bit depth; lossy formats: the bitrate (Opus tops out at 256)
+      if (LOSSLESS.includes(s.Format)) { save({ BitDepth: s.BitDepth === 16 ? 24 : 16 }); return; }
+      save({ Bitrate: cycle(bitrateList(s.Format), shownBitrate(s)) });
     });
     $('gear').addEventListener('click', () => {
       const open = $('panel').hidden;
@@ -328,18 +568,21 @@
         save({ [el.dataset.key]: value });
       });
     }
-    $('chipFormat').addEventListener('click', () => save({ Format: cycle(FORMAT_ORDER, settings().Format) }));
-    $('chipRecurse').addEventListener('click', () => save({ Recurse: !settings().Recurse }));
-    $('chipRate').addEventListener('click', () => save({ SampleRate: settings().SampleRate === 44100 ? 48000 : 44100 }));
-    $('chipMode').addEventListener('click', () => save({ QualityCheck: cycle(MODES, settings().QualityCheck) }));
-    $('chipMin').addEventListener('click', () => save({ MinKbps: cycle(MIN_ORDER, settings().MinKbps) }));
-
+    for (const pad of document.querySelectorAll('#pads .pad')) pad.addEventListener('click', () => save({ Format: pad.dataset.fmt }));
+    for (const opt of document.querySelectorAll('.opt')) opt.addEventListener('click', () => save({ [opt.dataset.opt]: !settings()[opt.dataset.opt] }));
+    $('roQuality').addEventListener('click', () => save({ QualityCheck: cycle(MODES, settings().QualityCheck) }));
+    window.addEventListener('resize', drawAll);
     $('start').addEventListener('click', async () => {
       if (running) return;
       setRunning(true);
       runStart = Date.now();
       clearLog();
+      clearFlags();
+      resultCount = 0;
+      lastPeak = null;
+      phase = 'running';
       setProgress(0, 0);
+      renderMeter();
       $('status').textContent = 'Starting...';
       try {
         await window.tc.startBatch($('inDir').value.trim(), $('outDir').value.trim(), droppedCount > 0);
@@ -348,8 +591,11 @@
         $('status').textContent = `ERROR: ${err.message}`;
       } finally {
         ranOnce = true;
+        if (phase === 'running') phase = 'done';
         setDropped(0);
         setRunning(false);
+        renderReadouts();
+        drawAll();
       }
     });
     $('stop').addEventListener('click', () => { $('status').textContent = 'Stopping...'; window.tc.stop(); });

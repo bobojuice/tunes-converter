@@ -87,11 +87,13 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   }
 
   let clipMsg = '';
+  let peakDb = null;
   if (settings.ClipCheck) {
     if (onStatus) onStatus(`Checking levels - ${baseName}`);
     const c = await checkClipping({ ffmpeg: tools.ffmpeg, file, signal });
     if (c.cancelled) return { status: 'STOP' };
     clipMsg = c.msg;
+    peakDb = c.peakDb;
   }
 
   const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
@@ -143,7 +145,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
     if (key) seen.add(key, length, outName);
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin) };
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), ...(peakDb !== null ? { peakDb } : {}) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {
