@@ -104,6 +104,7 @@ function saveRunReport(s, results, startedAt, r, onEvent) {
 // ---- watch folder: new music files in the songs folder are converted by the same pipeline ----
 let watcher = null;
 let watchKey = '';
+let watchMissing = false; // the songs folder vanished while watching (it may come back)
 
 // What the window shows: is the watch really running, and if the setting is on but it cannot run, why not.
 let watchInfo = { active: false, reason: '' };
@@ -119,27 +120,32 @@ function stopWatcher() {
   if (watcher) watcher.stop();
   watcher = null;
   watchKey = '';
+  watchMissing = false;
 }
 
 function syncWatcher() {
   const s = current();
   const plan = watchPlan(s);
   if (!plan.ok) { stopWatcher(); setWatchInfo({ active: false, reason: plan.reason }); return; }
-  setWatchInfo({ active: true, reason: '' });
   const key = JSON.stringify([s.In, s.Out, s.Recurse]);
-  if (watcher && key === watchKey) return;
+  if (watcher && key === watchKey) { setWatchInfo(watchMissing ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' }); return; }
   stopWatcher();
+  setWatchInfo({ active: true, reason: '' });
   watchKey = key;
   watcher = createWatcher({
     dir: s.In, recurse: s.Recurse, outDir: s.Out,
     isBusy: () => batchSlot.busy,
     onLog: appendLog,
+    onMissing: (gone) => {
+      watchMissing = gone;
+      setWatchInfo(gone ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' });
+    },
     onFiles: async (files) => {
       const ctrl = batchSlot.take();
       if (!ctrl) return; // cannot happen after isBusy(); the files stay handled rather than looping
       try {
         for (const f of files) send('batch:event', { type: 'message', text: `Watching: new file ${path.basename(f)}`, level: 'info' });
-        await executeBatch({ ctrl, s: current(), inputs: files, resetLog: false, watch: true });
+        await executeBatch({ ctrl, s: current(), inputs: files.map((f) => ({ full: f, rel: path.dirname(path.relative(s.In, f)).replace(/^\.$/, '') })), resetLog: false, watch: true });
       } catch (err) {
         send('batch:event', { type: 'message', text: `ERROR: ${err.message}`, level: 'error' });
       } finally {

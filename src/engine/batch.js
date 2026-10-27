@@ -64,7 +64,8 @@ function scanFolder(dir, { recurse, skipDir }) {
   return found;
 }
 
-// `inputs` (optional) is a list of individual files, used instead of scanning `inDir`.
+// `inputs` (optional) is a list of individual files, used instead of scanning `inDir`. An entry is a path string
+// (written flat into the output folder) or { full, rel } where rel is the sub-folder to mirror below the output folder.
 async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, inputs }) {
   const message = (text, level = 'info') => onEvent({ type: 'message', text, level });
   if (!tools) { message('ERROR: ffmpeg not found. Put ffmpeg and ffprobe in the bin folder or pick them in the app (see the instructions).', 'error'); return { ok: false }; }
@@ -81,7 +82,7 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
   try { fs.mkdirSync(outDir, { recursive: true }); } catch (err) { message(`ERROR: cannot create the output folder: ${err.message}`, 'error'); return { ok: false }; }
 
   const files = useInputs
-    ? inputs.map((full) => ({ full, rel: '' }))
+    ? inputs.map((i) => (typeof i === 'string' ? { full: i, rel: '' } : { full: i.full, rel: i.rel || '' }))
     : scanFolder(inDir, { recurse: Boolean(settings.Recurse), skipDir: outDir });
   if (!files.length) { message(settings.Recurse ? 'No music files found in that folder or its sub-folders.' : 'No music files found in that folder.'); return { ok: false }; }
 

@@ -10,7 +10,7 @@ const MAX_DEPTH = 20;
 // for `stableMs`. Each file is handled once per watch session. While `isBusy()` is true, ready files wait and are
 // handed over afterwards in one list. fs.watch is only a hint to look sooner; if it fails (or is not supported for
 // the folder) a scan every `pollMs` finds the files instead.
-function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false, onFiles, onLog = () => {}, stableMs = 2000, pollMs = 3000, tickMs = 500 }) {
+function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false, onFiles, onLog = () => {}, onMissing = () => {}, stableMs = 2000, pollMs = 3000, tickMs = 500 }) {
   // Canonical keys (symlinks, junctions and 8.3 names resolved) so another spelling of the same place compares equal.
   const fold = (p) => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p);
   const key = (p) => fold(canon(p).replace(/[\\/]+$/, ''));
@@ -25,6 +25,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
   let stopped = false;
   let lastScan = 0;
   let hint = false;
+  let missing = false;
 
   function walk(current, depth, out) {
     let entries;
@@ -39,8 +40,47 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
 
   for (const f of walk(dir, 0, [])) known.add(key(f));
 
+  const dirExists = () => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
+
+  function closeFsw() { if (fsw) { try { fsw.close(); } catch { /* already closed */ } fsw = null; } }
+
+  function startFsw() {
+    try {
+      // Recursive watching is native on Windows and macOS (and recent Node on Linux); if it throws, polling still covers it.
+      fsw = fs.watch(dir, { recursive: Boolean(recurse) }, () => { hint = true; });
+      fsw.on('error', () => {
+        closeFsw();
+        if (!dirExists()) { goMissing(); return; }
+        onLog('Folder watching fell back to checking every few seconds.');
+      });
+    } catch {
+      fsw = null;
+      if (dirExists()) onLog('Folder watching fell back to checking every few seconds.');
+    }
+  }
+
+  // The songs folder disappeared (deleted, drive unmounted): stop quietly, tell the owner once, resume if it returns.
+  function goMissing() {
+    if (missing) return;
+    missing = true;
+    closeFsw();
+    pending.clear();
+    ready.length = 0;
+    onMissing(true);
+  }
+
+  function comeBack() {
+    missing = false;
+    known.clear(); // whatever is in the returning folder is old, not new
+    for (const f of walk(dir, 0, [])) known.add(key(f));
+    startFsw();
+    onMissing(false);
+  }
+
   function scan() {
     lastScan = Date.now();
+    if (!dirExists()) { goMissing(); return; }
+    if (missing) comeBack();
     for (const f of walk(dir, 0, [])) if (!known.has(key(f)) && !pending.has(f)) pending.set(f, { size: -1, since: 0 });
   }
 
@@ -68,14 +108,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
     }
   }
 
-  try {
-    // Recursive watching is native on Windows and macOS (and recent Node on Linux); if it throws, polling still covers it.
-    fsw = fs.watch(dir, { recursive: Boolean(recurse) }, () => { hint = true; });
-    fsw.on('error', () => { try { fsw.close(); } catch { /* already closed */ } fsw = null; onLog('Folder watching fell back to checking every few seconds.'); });
-  } catch {
-    fsw = null;
-    onLog('Folder watching fell back to checking every few seconds.');
-  }
+  startFsw();
   timer = setInterval(tick, tickMs);
   if (timer.unref) timer.unref();
 
@@ -83,7 +116,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
     stop() {
       stopped = true;
       clearInterval(timer);
-      if (fsw) { try { fsw.close(); } catch { /* already closed */ } fsw = null; }
+      closeFsw();
       pending.clear();
       ready.length = 0;
     }
