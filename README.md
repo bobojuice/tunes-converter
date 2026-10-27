@@ -12,7 +12,7 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 **[⬇️ Download the latest release](https://github.com/bobojuice/tunes-converter/releases/latest)** ·
 **[📖 Full instructions](docs/HOWTO.md)**
 
-<img src="docs/screenshot.png" alt="Tunes Converter main window" width="46%"> <img src="docs/screenshot-settings.png" alt="Tunes Converter settings panel" width="46%">
+<img src="docs/screenshot.png" alt="Tunes Converter main window" width="46%"> <img src="docs/screenshot-settings.png" alt="Tunes Converter menu panel" width="46%">
 
 </div>
 
@@ -34,6 +34,8 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 - **Fake-quality check (optional):** measures where each file's audio *really* stops, not what its tag claims, and
   estimates its true quality. Warn about or skip files below a minimum you choose, such as a 128k MP3 passed off as
   320 or lossless. It is an estimate, not proof. [How it works](docs/HOWTO.md#quality-check-spot-fake-files).
+- **Built like DJ gear:** a CDJ-style screen with a live waveform while it converts, a round progress platter,
+  lit format pads, and a track list with flags for clipping, duplicates and low quality.
 - **Easy to use:** drag and drop a folder or files, include sub-folders (the layout is copied), see the time left.
 - **Safe:** originals are never touched, output goes to a separate folder, and existing files are skipped so
   reruns are harmless. MP3 sources are copied as they are when the output is MP3 (no re-encoding, tags still fixed).
@@ -57,9 +59,9 @@ on Windows press **Download ffmpeg**, on macOS use the **Get Homebrew** / **Copy
 Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshooting:
 **[docs/HOWTO.md](docs/HOWTO.md)**.
 
-## ⚙️ Settings
+## ⚙️ Menu and settings
 
-Click **Settings** (top right) for every option: output format, bit depth, bitrate, sample rate, quality check and
+The main screen has the format pads, the bit-depth/bitrate knob and the option keys. Click **MENU** (top right) for every option, including presets: output format, bit depth, bitrate, sample rate, quality check and
 minimum, file names, tags, sub-folders, cover art, full artist names, and opening the output folder when finished.
 The two folders and all options are saved automatically in `settings.json`. See
 [docs/HOWTO.md](docs/HOWTO.md#settings) for where it lives and what each value means.
@@ -75,7 +77,7 @@ npm test           # unit + integration tests (needs ffmpeg and ffprobe on your 
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.3.0` collects them
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.4.0` collects them
 into a draft release. The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
 ## 📝 Status
