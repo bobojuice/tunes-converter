@@ -694,7 +694,7 @@
   }
 
   // On short windows the whole UI is scaled down (Electron zoom) instead of scrolling; the track list gets LOG_MIN px.
-  const LOG_MIN = 120;
+  const LOG_MIN = 140;
   let zoomNow = 1;
   let lastPhys = { w: 0, h: 0 };
   function fitZoom(force) {
