@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('tc', {
     webFrame.setZoomFactor(f);
     return true;
   },
+  exportPresets: () => ipcRenderer.invoke('presets:export'),
+  importPresets: () => ipcRenderer.invoke('presets:import'),
   stop: () => ipcRenderer.invoke('batch:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
@@ -32,6 +34,11 @@ contextBridge.exposeInMainWorld('tc', {
     const h = (_e, ev) => cb(ev);
     ipcRenderer.on('batch:event', h);
     return () => ipcRenderer.removeListener('batch:event', h);
+  },
+  onWatchStatus: (cb) => {
+    const h = (_e, st) => cb(st);
+    ipcRenderer.on('watch:status', h);
+    return () => ipcRenderer.removeListener('watch:status', h);
   },
   onDownloadProgress: (cb) => {
     const h = (_e, p) => cb(p);

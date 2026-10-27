@@ -36,6 +36,7 @@ function summarise(c) {
   let s = `Done: ${c.OK + c.WARN} converted, ${c.SKIP} skipped, ${c.FAIL} failed.`;
   if (c.WARN) s += ` ${c.WARN} flagged as low quality.`;
   if (c.CLIPPED) s += ` ${c.CLIPPED} with clipping or peaks over 0 dBFS.`;
+  if (c.HEALTH) s += ` ${c.HEALTH} with health flags.`;
   if (c.DUPLICATE) s += ` ${c.DUPLICATE} possible duplicate${c.DUPLICATE === 1 ? '' : 's'}.`;
   if (c.FAKE + c.LOW) s += ` ${c.FAKE + c.LOW} not converted (below quality minimum, ${c.FAKE} of them fakes).`;
   return s;
@@ -84,7 +85,7 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     : scanFolder(inDir, { recurse: Boolean(settings.Recurse), skipDir: outDir });
   if (!files.length) { message(settings.Recurse ? 'No music files found in that folder or its sub-folders.' : 'No music files found in that folder.'); return { ok: false }; }
 
-  const counts = { OK: 0, WARN: 0, FAKE: 0, LOW: 0, SKIP: 0, FAIL: 0, CLIPPED: 0, DUPLICATE: 0 };
+  const counts = { OK: 0, WARN: 0, FAKE: 0, LOW: 0, SKIP: 0, FAIL: 0, CLIPPED: 0, DUPLICATE: 0, HEALTH: 0 };
   const seen = new SeenSongs(); // songs already converted in this run
   const allocators = new Map(); // one per output folder, so the same title in two sub-folders is not a duplicate
   const allocatorFor = (dir) => {
@@ -124,7 +125,8 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     counts[res.status] += 1;
     if (res.clipped) counts.CLIPPED += 1;
     if (res.duplicate) counts.DUPLICATE += 1;
-    onEvent({ type: 'result', status: res.status, name: files[i].rel ? path.join(files[i].rel, res.name) : res.name, note: res.note, peak: typeof res.peakDb === 'number' ? res.peakDb : null });
+    if (res.health) counts.HEALTH += 1;
+    onEvent({ type: 'result', status: res.status, name: files[i].rel ? path.join(files[i].rel, res.name) : res.name, note: res.note, health: Boolean(res.health), duplicate: Boolean(res.duplicate), peak: typeof res.peakDb === 'number' ? res.peakDb : null });
     onEvent({ type: 'progress', index: i + 1, total: files.length, file: label });
   }
 
@@ -135,4 +137,4 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
   return { ok: true, stopped, counts, summary };
 }
 
-module.exports = { runBatch, summarise, samePath, EXTENSIONS };
+module.exports = { runBatch, summarise, samePath, canon, sameFolder, EXTENSIONS };

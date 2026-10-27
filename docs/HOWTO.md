@@ -1,6 +1,6 @@
 # How to install and use Tunes Converter
 
-Tunes Converter turns a folder of music files into MP3s with correct `Artist - Title` file names. It is a small
+Tunes Converter turns a folder of music files into MP3, AAC, FLAC, WAV, AIFF or Opus files with correct `Artist - Title` file names. It is a small
 app for Windows, macOS and Linux.
 
 ![Tunes Converter](screenshot.png)
@@ -86,7 +86,7 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 1. Open Tunes Converter.
 2. **Songs folder:** click **Browse** and choose the folder with your music (files directly in it are converted;
    subfolders are not searched).
-3. **Save MP3s to:** choose where the MP3s go. It must be a different folder from the songs folder. It is created
+3. **Save to:** choose where the converted files go. It must be a different folder from the songs folder. It is created
    if it does not exist.
 4. Press **START**. The progress bar and log show each file as it finishes.
 5. **Stop** ends the batch after cancelling the current file cleanly (no half-written files are left behind).
@@ -102,6 +102,20 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Clipping check:** switch on *Check for clipping* in the Menu (or press the **CLIP CHECK** key) to read each file once more and flag tracks with many samples at full scale or peaks above 0 dBFS. It only adds a note to the log (and a count in the summary); nothing is changed or skipped. Off by default because it takes extra time.
 
+**Copy, don't re-encode:** when a file is already in the chosen format (MP3 to MP3, AAC to M4A, Opus to Opus, FLAC to FLAC, WAV to WAV, AIFF to AIFF) the audio is copied untouched and only the name, tags and cover art are fixed. For FLAC, WAV and AIFF the bit depth must also match your setting, otherwise the file is converted. Bitrate and sample rate settings are ignored for copied files. On by default; switch it off in the Menu to always re-encode.
+
+**Health check:** on by default (Menu). Each file is checked for mono sound stored as stereo, a sample rate below 44.1 kHz, and damage or truncation. It only adds a note to the log, a teal flag and a count in the summary; the file is still converted and nothing is changed.
+
+**Cover art size:** only oversized embedded art (over 1000 pixels on a side or about 1 MB) is shrunk to a JPEG of at most 800 pixels; normal art is left exactly as it is. The audio is never touched. On by default.
+
+**Original dates:** the converted file gets the original file's modified date, so your folders still sort by date. On by default.
+
+**Save report:** off by default. When on, each run writes a CSV file (`Tunes Converter report <date time>.csv`) to the output folder with status, file, notes, health flag, peak and duplicate for every track. An existing report is never overwritten.
+
+**Share presets:** under the presets in the Menu, **Export / Import presets as a file** saves your presets to a small file or adds presets from one. Imported names that already exist are skipped, and every value is checked.
+
+**Watch folder:** off by default. When on, new music files that appear in the songs folder (and its sub-folders if included) after you switch it on are converted automatically, once each, after they have finished copying. Files already in the folder are not touched. It stops when you switch it off or close the app.
+
 **Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click a format pad to choose MP3, AAC (M4A), FLAC, WAV, AIFF or Opus (Opus tops out at 256 kbps); click the **SUBFOLDERS** key to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
 
 Log colours: green **OK** = converted, amber **SKIP** = already there, red **FAIL** = problem with that file (the
@@ -110,7 +124,7 @@ reason is shown; the rest of the batch continues). Amber **WARN**/**LOW** and re
 
 The controls under the display work like a CDJ: the **format pads** pick the output format, the round **knob** (click to step through) sets the bit depth for WAV/AIFF/FLAC or the bitrate for MP3/AAC/Opus, and the **option keys** switch cover art, full artist names, sub-folders and the clipping check on or off. The **QUALITY** box on the display cycles the quality check (off, warn, skip). Sample rate and minimum quality are in the **MENU**. Everything is saved for next time.
 
-The **peak meter** next to the knob shows the loudest peak of the last converted track (needs the clip check; it reads "CLIP CHECK OFF" otherwise). Flags on the strip under the waveform mark tracks with a note: red = clipping, orange = possible duplicate, pink = quality warning.
+The **peak meter** next to the knob shows the loudest peak of the last converted track (needs the clip check; it reads "CLIP CHECK OFF" otherwise). Flags on the strip under the waveform mark tracks with a note: red = clipping, orange = possible duplicate, pink = quality warning, teal = health flag.
 
 ## What it does to your files
 
@@ -206,6 +220,12 @@ the app is closed:
 | `JoinArtists`  | `true`              | `false` leaves multi-artist tags as they are |
 | `ClipCheck`    | `false`             | `true` flags clipped tracks in the log |
 | `DuplicateMode` | `warn`             | `off`, `warn` (note in the log), `skip` (leave extra copies out) |
+| `CopyMode`     | `true`              | `false` always re-encodes, even when the format already matches |
+| `HealthCheck`  | `true`              | `false` turns off the mono / low sample rate / damaged-file flags |
+| `ArtResize`    | `true`              | `false` keeps oversized cover art as it is |
+| `KeepDates`    | `true`              | `false` gives converted files the current date |
+| `SaveReport`   | `false`             | `true` writes a CSV report to the output folder after each run |
+| `WatchFolder`  | `false`             | `true` converts new files that appear in the songs folder |
 | `Presets`      | empty               | list of saved presets, each a name plus the conversion options (managed in Settings; up to 20) |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
@@ -235,7 +255,7 @@ in `last-run.log` in the same folder.
 ## Uninstall
 
 Remove the app: on Windows uninstall it from **Settings > Apps** (or delete the folder if you used the zip); on macOS delete the app; on Linux delete the AppImage. Settings live in the folders listed
-under [Settings](#settings); delete those too if you want no trace. Your converted MP3s stay wherever you saved them.
+under [Settings](#settings); delete those too if you want no trace. Your converted music stays wherever you saved it.
 
 ## Build from source
 
