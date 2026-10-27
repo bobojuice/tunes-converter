@@ -22,7 +22,7 @@
   let droppedCount = 0;
   let runStart = 0;
   let ranOnce = false;
-  let phase = 'idle'; // idle | running | done
+  let phase = 'idle'; // idle | running | done | stopped | failed
   let progIndex = 0;
   let progTotal = 0;
   let resultCount = 0;
@@ -112,7 +112,7 @@
     const s = settings();
     const total = progTotal;
     const cur = Math.min(progIndex + 1, total);
-    $('roTrack').textContent = phase === 'idle' ? '--/--' : phase === 'done' ? `${pad2(Math.min(progIndex, total))}/${pad2(total)}` : `${pad2(cur)}/${pad2(total)}`;
+    $('roTrack').textContent = phase === 'idle' ? '--/--' : phase === 'running' ? `${pad2(cur)}/${pad2(total)}` : `${pad2(Math.min(progIndex, total))}/${pad2(total)}`;
     $('roFormat').textContent = formatReadout();
     if (phase === 'running' && etaSecs !== null) {
       $('roTime').textContent = `${pad2(Math.floor(etaSecs / 60))}:${pad2(etaSecs % 60)}`;
@@ -132,6 +132,14 @@
       $('hubLabel').textContent = 'CONVERTING';
       $('hubBig').textContent = `${pct}%`;
       $('count').textContent = `${cur} / ${total}`;
+    } else if (phase === 'stopped') {
+      $('hubLabel').textContent = 'STOPPED';
+      $('hubBig').textContent = `${pct}%`;
+      $('count').textContent = `${progIndex} / ${total}`;
+    } else if (phase === 'failed') {
+      $('hubLabel').textContent = 'PROBLEM';
+      $('hubBig').textContent = 'FAILED';
+      $('count').textContent = `${progIndex} / ${total}`;
     } else if (phase === 'done') {
       $('hubLabel').textContent = 'FINISHED';
       $('hubBig').textContent = 'DONE';
@@ -405,11 +413,13 @@
       resultCount += 1;
       addResult(ev);
       addFlag(ev);
-      if (typeof ev.peak === 'number') lastPeak = ev.peak;
+      // a converted track with no reading (silent file) clears the meter; skipped or failed ones leave it alone
+      if (ev.status === 'OK' || ev.status === 'WARN') lastPeak = typeof ev.peak === 'number' ? ev.peak : null;
       renderMeter();
       renderReadouts();
     } else if (ev.type === 'done') {
-      phase = 'done';
+      const c = ev.counts || {};
+      phase = ev.stopped ? 'stopped' : (c.OK || 0) + (c.WARN || 0) === 0 && (c.FAIL || 0) > 0 ? 'failed' : 'done';
       etaSecs = null;
       renderReadouts();
       drawAll();
@@ -591,7 +601,7 @@
         $('status').textContent = `ERROR: ${err.message}`;
       } finally {
         ranOnce = true;
-        if (phase === 'running') phase = 'done';
+        if (phase === 'running') phase = 'failed'; // no 'done' event: the run never started (error is in the log)
         setDropped(0);
         setRunning(false);
         renderReadouts();
