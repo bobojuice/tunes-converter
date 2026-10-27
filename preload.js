@@ -10,7 +10,10 @@ contextBridge.exposeInMainWorld('tc', {
   recheckFfmpeg: () => ipcRenderer.invoke('ffmpeg:recheck'),
   downloadFfmpeg: () => ipcRenderer.invoke('ffmpeg:download'),
   startBatch: (inDir, outDir, useDropped) => ipcRenderer.invoke('batch:start', { inDir, outDir, useDropped: Boolean(useDropped) }),
-  pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  // Older Electron (the legacy macOS build) has no webUtils: fall back to File.path.
+  pathForFile: (file) => {
+    try { return webUtils && webUtils.getPathForFile ? webUtils.getPathForFile(file) : (file && file.path) || ''; } catch { return ''; }
+  },
   dropPaths: (list) => ipcRenderer.invoke('drop:paths', list),
   clearDropped: () => ipcRenderer.invoke('drop:clear'),
   copyInstallCommand: () => ipcRenderer.invoke('app:copyInstallCommand'),

@@ -16,7 +16,7 @@
   "build": {
     "appId": "io.github.bobojuice.tunesconverter",
     "productName": "Tunes Converter",
-    "artifactName": "TunesConverter-${version}-${os}-${arch}.${ext}",
+    "artifactName": "TunesConverter-${version}-legacy-${os}-${arch}.${ext}",
     "asar": false,
     "directories": {
       "output": "dist",
@@ -62,19 +62,18 @@
     },
     "mac": {
       "category": "public.app-category.music",
+      "minimumSystemVersion": "10.13.0",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         }
       ]
@@ -103,7 +102,7 @@
     ]
   },
   "devDependencies": {
-    "electron": "^45.0.0",
+    "electron": "26.6.10",
     "electron-builder": "^26.18.0"
   }
 }
