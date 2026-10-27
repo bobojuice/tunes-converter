@@ -697,7 +697,16 @@
   const LOG_MIN = 140;
   let zoomNow = 1;
   let lastPhys = { w: 0, h: 0 };
+  // The narrow/tiny layouts follow the PHYSICAL window width, so zooming (which changes the CSS width) can never flip the layout
+  // back and forth while the zoom is being fitted.
+  function layoutMode() {
+    const physW = Math.round(window.innerWidth * zoomNow);
+    document.documentElement.classList.toggle('narrow', physW < 700);
+    document.documentElement.classList.toggle('tiny', physW < 380);
+  }
+
   function fitZoom(force) {
+    layoutMode();
     if (!window.tc || !window.tc.setZoom || $('mainView').hidden) return;
     const phys = { w: Math.round(window.innerWidth * zoomNow), h: Math.round(window.innerHeight * zoomNow) };
     // A resize we caused ourselves by zooming leaves the physical window size unchanged: ignore it (no feedback loop).
@@ -706,7 +715,10 @@
     const app = document.querySelector('.app');
     const log = document.querySelector('.log');
     const needed = app.scrollHeight - log.offsetHeight + LOG_MIN; // CSS px, independent of the current zoom
-    const f = Math.min(1, Math.max(0.7, Math.floor((phys.h / needed) * 100) / 100));
+    const raw = Math.floor((phys.h / needed) * 100) / 100;
+    // Below the zoom floor nothing more can be shrunk: let the page scroll rather than clip controls.
+    document.documentElement.classList.toggle('overflow', raw < 0.7);
+    const f = Math.min(1, Math.max(0.7, raw));
     if (Math.abs(f - zoomNow) < 0.01) return;
     if (window.tc.setZoom(f)) zoomNow = f;
   }

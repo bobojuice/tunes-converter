@@ -248,17 +248,22 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .panel .presets .help { grid-column: 2 / 4; min-height: 1em; }
 .panel .btn { font-family: var(--font); }
 
-@media (max-width: 700px) {
-  .app { padding: 20px 16px; }
-  .deck { grid-template-columns: minmax(0, 1fr); }
-  .paths { flex-direction: column; gap: 6px; }
-  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ro-time { grid-column: 1 / -1; order: -1; }
-  .panel .grid, .panel .presets { grid-template-columns: minmax(0, 1fr); }
-  .panel .help, .panel .presets input[type="text"], .panel .presets .help { grid-column: 1; }
-  .log-head, .row-log { grid-template-columns: 30px 70px minmax(0, 1fr); }
-  .log-head span:nth-child(4) { display: none; }
-  .row-log .note { grid-column: 3; }
-  .opt { font-size: 10.5px; }
-}
-@media (max-width: 380px) { .platter { transform: scale(0.85); } }
+/* Narrow layout is chosen in JS from the PHYSICAL window width (see layoutMode in renderer.js), not from a media query:
+   zoom changes the CSS width, and a media query would flip layouts while the zoom is being fitted. */
+.narrow .app { padding: 20px 16px; }
+.narrow .deck { grid-template-columns: minmax(0, 1fr); }
+.narrow .paths { flex-direction: column; gap: 6px; }
+.narrow .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.narrow .ro-time { grid-column: 1 / -1; order: -1; }
+.narrow .panel .grid, .narrow .panel .presets { grid-template-columns: minmax(0, 1fr); }
+.narrow .panel .help, .narrow .panel .presets input[type="text"], .narrow .panel .presets .help { grid-column: 1; }
+.narrow .log-head, .narrow .row-log { grid-template-columns: 30px 70px minmax(0, 1fr); }
+.narrow .log-head span:nth-child(4) { display: none; }
+.narrow .row-log .note { grid-column: 3; }
+.narrow .opt { font-size: 10.5px; }
+.tiny .platter { transform: scale(0.85); }
+
+/* Last resort: even at the smallest zoom the content does not fit (very short work area, banner showing): let the page scroll. */
+.overflow, .overflow body { overflow-y: auto; }
+.overflow .app { height: auto; min-height: 100vh; overflow: visible; }
+.overflow .main-view > .log { flex: none; height: 160px; }
