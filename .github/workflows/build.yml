@@ -30,7 +30,10 @@ jobs:
           cache: npm
 
       # ffmpeg is only needed by the tests; it is never bundled into the app.
+      # If the package download hangs or fails the tests that need ffmpeg are skipped and the build still runs.
       - name: Install ffmpeg for the tests
+        timeout-minutes: 6
+        continue-on-error: true
         shell: bash
         run: |
           case "$RUNNER_OS" in
