@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const settings = require('./src/engine/settings');
 const { findTools, hasMp3Encoder } = require('./src/engine/tools');
-const { runBatch } = require('./src/engine/batch');
+const { runBatch, samePath } = require('./src/engine/batch');
+const { buildReport, writeReport } = require('./src/engine/report');
+const presetshare = require('./src/engine/presetshare');
+const { createWatcher } = require('./src/engine/watcher');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
@@ -61,6 +64,77 @@ function trusted(event) {
   return win && event.sender === win.webContents;
 }
 
+// The shared run: used by START and by the folder watcher. The caller owns the slot (`ctrl`).
+async function executeBatch({ ctrl, s, inputs, resetLog }) {
+  const t = await toolState(s);
+  if (ctrl.signal.aborted) return { ok: false, cancelled: true };
+  if (resetLog) { try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ } }
+  const startedAt = new Date();
+  const results = [];
+  const onEvent = (ev) => {
+    if (ev.type === 'message') appendLog(ev.text);
+    if (ev.type === 'result') { results.push(ev); appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`); }
+    send('batch:event', ev);
+  };
+  const r = await runBatch({ inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal, inputs, onEvent });
+  if (s.SaveReport && results.length) saveRunReport(s, results, startedAt, r, onEvent);
+  return r;
+}
+
+// Report file in the output folder; the data folder if that fails. Never changes the run's own result.
+function saveRunReport(s, results, startedAt, r, onEvent) {
+  const text = buildReport(results, { startedAt, summary: r && r.summary, format: s.Format });
+  let file = '';
+  for (const dir of [s.Out, paths().dir]) {
+    try { file = writeReport(dir, text, startedAt); break; } catch { /* try the next folder */ }
+  }
+  const msg = file ? `Report saved: ${path.basename(file)}` : 'Could not save the report file.';
+  if (file) appendLog(`Report saved: ${file}`);
+  onEvent({ type: 'message', text: msg, level: file ? 'info' : 'error' });
+}
+
+// ---- watch folder: new music files in the songs folder are converted by the same pipeline ----
+let watcher = null;
+let watchKey = '';
+
+function realOrResolved(p) {
+  try { return fs.realpathSync.native(p); } catch { return path.resolve(p); }
+}
+
+function stopWatcher() {
+  if (watcher) watcher.stop();
+  watcher = null;
+  watchKey = '';
+}
+
+function syncWatcher() {
+  const s = current();
+  let ok = false;
+  try { ok = s.WatchFolder && s.In && s.Out && fs.statSync(s.In).isDirectory() && !samePath(realOrResolved(s.In), realOrResolved(s.Out)); } catch { ok = false; }
+  if (!ok) { stopWatcher(); return; }
+  const key = JSON.stringify([s.In, s.Out, s.Recurse]);
+  if (watcher && key === watchKey) return;
+  stopWatcher();
+  watchKey = key;
+  watcher = createWatcher({
+    dir: s.In, recurse: s.Recurse, outDir: s.Out,
+    isBusy: () => batchSlot.busy,
+    onLog: appendLog,
+    onFiles: async (files) => {
+      const ctrl = batchSlot.take();
+      if (!ctrl) return; // cannot happen after isBusy(); the files stay handled rather than looping
+      try {
+        for (const f of files) send('batch:event', { type: 'message', text: `Watching: new file ${path.basename(f)}`, level: 'info' });
+        await executeBatch({ ctrl, s: current(), inputs: files, resetLog: false });
+      } catch (err) {
+        send('batch:event', { type: 'message', text: `ERROR: ${err.message}`, level: 'error' });
+      } finally {
+        batchSlot.release(ctrl);
+      }
+    }
+  });
+}
+
 function registerIpc() {
   ipcMain.handle('app:getState', async (event) => {
     if (!trusted(event)) return null;
@@ -79,7 +153,9 @@ function registerIpc() {
   ipcMain.handle('settings:update', (event, changes) => {
     const safe = rendererSettingsChanges(changes);
     if (!trusted(event) || !safe) return null;
-    return settings.save(paths().settings, base(), safe);
+    const next = settings.save(paths().settings, base(), safe);
+    syncWatcher(); // starts, restarts (folder changed) or stops the folder watch as the settings say
+    return next;
   });
 
   ipcMain.handle('dialog:pickFolder', async (event, { title, defaultPath } = {}) => {
@@ -135,6 +211,7 @@ function registerIpc() {
     droppedFiles = r.kind === 'files' ? r.files : [];
     if (r.kind === 'folder') {
       const s = settings.save(paths().settings, base(), { In: r.dir });
+      syncWatcher();
       return { kind: 'folder', dir: r.dir, settings: s };
     }
     return r.kind === 'files' ? { kind: 'files', count: r.files.length } : { kind: 'none' };
@@ -163,21 +240,49 @@ function registerIpc() {
     const inputs = useDropped ? droppedFiles.slice() : undefined; // snapshot before any await; [] means "nothing selected"
     try {
       const s = settings.save(paths().settings, base(), { In: inDir, Out: outDir });
-      const t = await toolState(s);
-      if (ctrl.signal.aborted) return { ok: false, cancelled: true };
-      try { fs.writeFileSync(paths().log, ''); } catch { /* best effort */ }
-      return await runBatch({
-        inDir: s.In, outDir: s.Out, settings: s, tools: t.tools, signal: ctrl.signal,
-        inputs,
-        onEvent: (ev) => {
-          if (ev.type === 'message') appendLog(ev.text);
-          if (ev.type === 'result') appendLog(`${ev.status.padEnd(6)}${ev.name}  ${ev.note}`);
-          send('batch:event', ev);
-        }
-      });
+      syncWatcher();
+      return await executeBatch({ ctrl, s, inputs, resetLog: true });
     } finally {
       if (useDropped) droppedFiles = [];
       batchSlot.release(ctrl);
+    }
+  });
+
+  // ---- share presets: JSON file through the native dialogs; the window never supplies a path ----
+  ipcMain.handle('presets:export', async (event) => {
+    if (!trusted(event)) return { ok: false };
+    const list = current().Presets;
+    if (!list.length) return { ok: false, error: 'No presets to export.' };
+    const r = await dialog.showSaveDialog(win, {
+      title: 'Export presets',
+      defaultPath: path.join(app.getPath('documents'), 'Tunes Converter presets.json'),
+      filters: [{ name: 'Presets', extensions: ['json'] }]
+    });
+    if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
+    try {
+      fs.writeFileSync(r.filePath, presetshare.serialize(list));
+      return { ok: true, count: list.length };
+    } catch (err) {
+      return { ok: false, error: `Could not write the file: ${err.message}` };
+    }
+  });
+
+  ipcMain.handle('presets:import', async (event) => {
+    if (!trusted(event)) return { ok: false };
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Import presets',
+      properties: ['openFile'],
+      filters: [{ name: 'Presets', extensions: ['json'] }]
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true };
+    try {
+      if (fs.statSync(r.filePaths[0]).size > presetshare.MAX_FILE_BYTES) throw new Error('That file is too large to be a preset file.');
+      const incoming = presetshare.parse(fs.readFileSync(r.filePaths[0], 'utf8'));
+      const m = presetshare.merge(current().Presets, incoming);
+      const next = settings.save(paths().settings, base(), { Presets: m.presets });
+      return { ok: true, added: m.added, skipped: m.skipped, settings: next };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
   });
 
@@ -258,11 +363,14 @@ function start() {
   }
   registerIpc();
   app.on('window-all-closed', () => {
+    stopWatcher();
     batchSlot.abort();
     app.quit();
   });
+  app.on('before-quit', stopWatcher);
   return app.whenReady().then(() => {
     const w = createWindow();
+    syncWatcher();
     app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
     return w;
   });

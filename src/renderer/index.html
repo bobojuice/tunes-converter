@@ -24,6 +24,7 @@
       <button id="presetDelete" class="btn ghost small" type="button">Delete</button>
       <input id="presetName" type="text" maxlength="40" placeholder="Name for the current settings" spellcheck="false" autocomplete="off" aria-label="Preset name">
       <button id="presetSave" class="btn ghost small" type="button">Save</button>
+      <span class="share"><button id="presetExport" class="link" type="button">Export</button> / <button id="presetImport" class="link" type="button">Import</button> presets as a file</span>
       <span id="presetMsg" class="help" role="status"></span>
     </div>
     <div class="grid">
@@ -54,6 +55,12 @@
     <label class="check"><input type="checkbox" data-key="CoverArt"> Keep cover art</label>
     <label class="check"><input type="checkbox" data-key="JoinArtists"> Full artist names ("A;B" becomes "A, B")</label>
     <label class="check"><input type="checkbox" data-key="ClipCheck"> Check for clipping (slower: reads each file once more)</label>
+    <label class="check"><input type="checkbox" data-key="CopyMode"> Copy audio when the format already matches (no re-encode)</label>
+    <label class="check"><input type="checkbox" data-key="HealthCheck"> Health check: flag mono files, low sample rate, damaged files</label>
+    <label class="check"><input type="checkbox" data-key="ArtResize"> Shrink oversized cover art (over 1000 px / 1 MB) to 800 px</label>
+    <label class="check"><input type="checkbox" data-key="KeepDates"> Keep the original file dates</label>
+    <label class="check"><input type="checkbox" data-key="SaveReport"> Save a report file after each run</label>
+    <label class="check"><input type="checkbox" data-key="WatchFolder"> Watch the songs folder and convert new files automatically <span id="watchState" class="watch-state" hidden>WATCHING</span></label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 

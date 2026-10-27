@@ -27,6 +27,12 @@ function defaults(desktopDir) {
     JoinArtists: true,
     ClipCheck: false,
     DuplicateMode: 'warn',
+    CopyMode: true,
+    HealthCheck: true,
+    ArtResize: true,
+    KeepDates: true,
+    SaveReport: false,
+    WatchFolder: false,
     Presets: [],
     OpenWhenDone: false,
     WinW: 820,
@@ -37,7 +43,7 @@ function defaults(desktopDir) {
 
 // A preset remembers the conversion options only, never folders, window size or the ffmpeg location.
 const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode',
-  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode'];
+  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
 const MAX_PRESETS = 20;
 const MAX_PRESET_NAME = 40;
 
@@ -75,7 +81,7 @@ function merge(base, raw) {
   if (TAG_MODES.includes(raw.TagMode)) s.TagMode = raw.TagMode;
   if (validTemplate(raw.NameTemplate)) s.NameTemplate = raw.NameTemplate.trim();
   if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
-  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone']) {
+  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }
   if (Array.isArray(raw.Presets)) s.Presets = cleanPresets(raw.Presets);

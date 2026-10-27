@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('tc', {
     webFrame.setZoomFactor(f);
     return true;
   },
+  exportPresets: () => ipcRenderer.invoke('presets:export'),
+  importPresets: () => ipcRenderer.invoke('presets:import'),
   stop: () => ipcRenderer.invoke('batch:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

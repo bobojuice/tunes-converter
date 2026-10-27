@@ -5,7 +5,7 @@
   const MODES = ['off', 'warn', 'skip'];
   const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'Opus' };
   const LOSSLESS = ['flac', 'wav', 'aiff'];
-  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode'];
+  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
   const SHORT = { mp3: 'MP3', m4a: 'AAC', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'OPUS' };
   const MODE_LABEL = { off: 'OFF', warn: 'WARN', skip: 'SKIP' };
   const MODE_TIP = {
@@ -13,7 +13,7 @@
     warn: 'Quality check: convert everything but flag low-quality files. Click to change.',
     skip: 'Quality check: do not convert files below the minimum. Click to change.'
   };
-  const COL = { blue: '#2EA7FF', dim: '#1C6FA8', orange: '#FF8A1F', red: '#FF5C7A', pink: '#FF7AD9' };
+  const COL = { blue: '#2EA7FF', dim: '#1C6FA8', orange: '#FF8A1F', red: '#FF5C7A', pink: '#FF7AD9', teal: '#37D6B0' };
   const HELP_URL = 'https://github.com/bobojuice/tunes-converter/blob/main/docs/HOWTO.md';
 
   let state = null;
@@ -48,6 +48,7 @@
     const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
     $('setName').value = preset ? preset.value : 'custom';
     renderPresets();
+    $('watchState').hidden = !s.WatchFolder;
     for (const el of document.querySelectorAll('#panel [data-show]')) {
       const kind = el.dataset.show;
       el.hidden = kind === 'depth' ? !LOSSLESS.includes(s.Format)
@@ -145,7 +146,7 @@
       $('hubBig').textContent = 'DONE';
       $('count').textContent = `${progIndex} / ${total}`;
     } else {
-      $('hubLabel').textContent = 'READY';
+      $('hubLabel').textContent = s.WatchFolder ? 'WATCHING' : 'READY';
       $('hubBig').textContent = SHORT[s.Format];
       $('count').textContent = '';
     }
@@ -321,6 +322,7 @@
     let why = '';
     if (/clipping|over 0|dBFS/i.test(note)) { color = COL.red; why = 'clipping'; }
     else if (/duplicate/i.test(note)) { color = COL.orange; why = 'duplicate'; }
+    else if (res.health) { color = COL.teal; why = 'health check'; }
     else if (['WARN', 'LOW', 'FAKE'].includes(res.status)) { color = COL.pink; why = `quality ${res.status}`; }
     if (!color) return;
     const n = flags.length;
@@ -401,9 +403,33 @@
     drawAll();
   }
 
+  // A run started by the folder watch (no START click): the window shows it like a normal run, then goes back to idle.
+  let watchRun = false;
+  function beginWatchRun() {
+    watchRun = true;
+    setRunning(true);
+    runStart = Date.now();
+    clearLog();
+    clearFlags();
+    resultCount = 0;
+    lastPeak = null;
+    phase = 'running';
+    setProgress(0, 0);
+    renderMeter();
+  }
+  function endWatchRun() {
+    watchRun = false;
+    ranOnce = true;
+    setRunning(false);
+    renderReadouts();
+    drawAll();
+  }
+
   function onBatchEvent(ev) {
+    if (ev.type === 'message' && !running && /^Watching: new file /.test(ev.text)) beginWatchRun();
     if (ev.type === 'message') {
       addMessage(ev.text, ev.level);
+      if (watchRun && ev.level === 'error' && progTotal === 0) { phase = 'failed'; endWatchRun(); }
       if (ev.level === 'summary' || ev.level === 'error') $('status').textContent = ev.text;
     } else if (ev.type === 'progress') {
       setProgress(ev.index, ev.total);
@@ -425,6 +451,7 @@
       drawAll();
       $('status').textContent = ev.summary;
       if (settings().OpenWhenDone && !ev.stopped) window.tc.openFolder('out');
+      if (watchRun) endWatchRun();
     }
   }
 
@@ -578,6 +605,21 @@
       renderPresets();
     });
     $('presetSave').addEventListener('click', savePreset);
+    $('presetExport').addEventListener('click', async () => {
+      const r = await window.tc.exportPresets();
+      if (r && r.ok) $('presetMsg').textContent = `Exported ${r.count} preset${r.count === 1 ? '' : 's'}.`;
+      else if (r && r.error) $('presetMsg').textContent = r.error;
+    });
+    $('presetImport').addEventListener('click', async () => {
+      const r = await window.tc.importPresets();
+      if (r && r.ok) {
+        state.settings = r.settings;
+        render();
+        $('presetMsg').textContent = `Imported ${r.added} preset${r.added === 1 ? '' : 's'}${r.skipped ? `, skipped ${r.skipped} (same name or list full)` : ''}.`;
+      } else if (r && r.error) {
+        $('presetMsg').textContent = r.error;
+      }
+    });
     $('presetName').addEventListener('keydown', (e) => { if (e.key === 'Enter') savePreset(); });
     $('presetDelete').addEventListener('click', async () => {
       const name = $('presetList').value;

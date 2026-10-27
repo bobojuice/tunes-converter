@@ -8,6 +8,8 @@ const { testQuality } = require('./quality');
 const { FORMATS } = require('./formats');
 const { checkClipping } = require('./clipping');
 const { songKey } = require('./duplicates');
+const { checkHealth } = require('./health');
+const { findArt, resizeArt } = require('./art');
 
 async function probe(ffprobe, file, signal) {
   const r = await run(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { signal });
@@ -31,6 +33,27 @@ function placeNoOverwrite(part, dest) {
     }
   }
   return true;
+}
+
+// True when the source already is the output codec (and, for lossless, the chosen bit depth), so the audio can be copied.
+function canCopy(fmt, audio, container, depth) {
+  const codec = audio.codec_name;
+  if (fmt === FORMATS.mp3) return codec === 'mp3';
+  if (fmt === FORMATS.m4a) return codec === 'aac' && /mp4|mov/.test((container && container.format_name) || '');
+  if (fmt === FORMATS.opus) return codec === 'opus';
+  const bits = Number(audio.bits_per_raw_sample) || Number(audio.bits_per_sample) || 0;
+  if (fmt === FORMATS.flac) return codec === 'flac' && bits === depth;
+  if (fmt === FORMATS.wav) return codec === `pcm_s${depth}le`;
+  if (fmt === FORMATS.aiff) return codec === `pcm_s${depth}be`;
+  return false;
+}
+
+// The converted file gets the source file's modified time (best effort, never an error).
+function keepDates(src, dest) {
+  try {
+    const st = fs.statSync(src);
+    fs.utimesSync(dest, st.atime, st.mtime);
+  } catch { /* leave the dates as they are */ }
 }
 
 // Converts one file. Returns { status: 'OK'|'WARN'|'LOW'|'FAKE'|'SKIP'|'FAIL'|'STOP', name, note }.
@@ -96,43 +119,64 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     peakDb = c.peakDb;
   }
 
-  const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
-  const isMp3 = fmt === FORMATS.mp3 && audio.codec_name === 'mp3'; // an MP3 stays as is (no second lossy pass)
-  const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
-  const args = ['-v', 'error', '-y', '-i', file, '-map', '0:a:0'];
-  const coverOk = keepCover && fmt !== FORMATS.opus && !fmt.noCover; // the Opus and WAV containers take no cover art this way
-  if (coverOk) args.push('-map', '0:v?');
-  const tagMode = settings.TagMode || 'keep';
-  args.push('-map_metadata', tagMode === 'keep' ? '0' : '-1');
-  if (isMp3) {
-    args.push('-c', 'copy');
-  } else {
-    const depth = settings.BitDepth === 24 ? 24 : 16;
-    args.push('-c:a', fmt === FORMATS.wav ? (depth === 24 ? 'pcm_s24le' : 'pcm_s16le')
-      : fmt === FORMATS.aiff ? (depth === 24 ? 'pcm_s24be' : 'pcm_s16be') : fmt.encoder);
-    if (fmt.lossy) args.push('-b:a', `${kbps}k`);
-    if (fmt.depth) {
-      // 32-bit float (and other deeper) sources are converted to the chosen depth; 16-bit gets dither.
-      if (fmt === FORMATS.flac) args.push('-sample_fmt', depth === 24 ? 's32' : 's16', ...(depth === 24 ? ['-bits_per_raw_sample', '24'] : []));
-      if (depth === 16) args.push('-af', 'aresample=dither_method=triangular');
-    } else if (fmt !== FORMATS.opus) {
-      args.push('-ar', String(settings.SampleRate));
-    }
-    if (coverOk) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
+  let healthMsg = '';
+  if (settings.HealthCheck !== false) {
+    if (onStatus) onStatus(`Checking file - ${baseName}`);
+    const h = await checkHealth({ ffmpeg: tools.ffmpeg, file, audio, format: info.format, signal });
+    if (h.cancelled) return { status: 'STOP' };
+    healthMsg = h.msg; // flagged only, the file is converted as usual
   }
-  if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
-  if ((fmt === FORMATS.wav || fmt === FORMATS.aiff) && tagMode !== 'strip') args.push('-write_id3v2', '1');
-  if (tagMode === 'keep') {
-    if (artist) args.push('-metadata', `artist=${artist}`);
-    if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
-  } else if (tagMode === 'clean') {
-    // only the main fields, written back explicitly
-    const keep = { artist, album_artist: albumArtist, title, album: fields.album, track: pickTag(tagSets, 'track'), date: pickTag(tagSets, 'date') || pickTag(tagSets, 'year'), genre: pickTag(tagSets, 'genre') };
-    for (const [k, v] of Object.entries(keep)) if (v) args.push('-metadata', `${k}=${v}`);
-  }
-  args.push('-f', fmt.muxer, part);
 
+  const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
+  const depth = settings.BitDepth === 24 ? 24 : 16;
+  const copy = settings.CopyMode !== false && canCopy(fmt, audio, info.format, depth); // same codec: only name, tags and cover change
+  const kbps = Math.min(settings.Bitrate, fmt.maxKbps || settings.Bitrate); // Opus tops out at 256k
+  const coverOk = keepCover && fmt !== FORMATS.opus && !fmt.noCover; // the Opus and WAV containers take no cover art this way
+  let artFile = null;
+  let artCleanup = () => {};
+  const args = ['-v', 'error', '-y', '-i', file];
   try {
+    const art = coverOk && settings.ArtResize !== false ? findArt(info) : null;
+    if (art) {
+      if (onStatus) onStatus(`Checking cover art - ${baseName}`);
+      const small = await resizeArt({ ffmpeg: tools.ffmpeg, input: file, art, base: part, signal });
+      artCleanup = small.cleanup;
+      if (signal.aborted) return { status: 'STOP' };
+      artFile = small.file;
+    }
+    if (artFile) args.push('-i', artFile);
+    args.push('-map', '0:a:0');
+    if (coverOk) args.push('-map', artFile ? '1:v:0' : '0:v?');
+    const tagMode = settings.TagMode || 'keep';
+    args.push('-map_metadata', tagMode === 'keep' ? '0' : '-1');
+    if (copy) {
+      args.push('-c', 'copy');
+      if (coverOk) args.push('-disposition:v', 'attached_pic');
+    } else {
+      args.push('-c:a', fmt === FORMATS.wav ? (depth === 24 ? 'pcm_s24le' : 'pcm_s16le')
+        : fmt === FORMATS.aiff ? (depth === 24 ? 'pcm_s24be' : 'pcm_s16be') : fmt.encoder);
+      if (fmt.lossy) args.push('-b:a', `${kbps}k`);
+      if (fmt.depth) {
+        // 32-bit float (and other deeper) sources are converted to the chosen depth; 16-bit gets dither.
+        if (fmt === FORMATS.flac) args.push('-sample_fmt', depth === 24 ? 's32' : 's16', ...(depth === 24 ? ['-bits_per_raw_sample', '24'] : []));
+        if (depth === 16) args.push('-af', 'aresample=dither_method=triangular');
+      } else if (fmt !== FORMATS.opus) {
+        args.push('-ar', String(settings.SampleRate));
+      }
+      if (coverOk) args.push('-c:v', 'copy', '-disposition:v', 'attached_pic');
+    }
+    if (fmt === FORMATS.mp3) args.push('-id3v2_version', '3');
+    if ((fmt === FORMATS.wav || fmt === FORMATS.aiff) && tagMode !== 'strip') args.push('-write_id3v2', '1');
+    if (tagMode === 'keep') {
+      if (artist) args.push('-metadata', `artist=${artist}`);
+      if (albumArtist) args.push('-metadata', `album_artist=${albumArtist}`);
+    } else if (tagMode === 'clean') {
+      // only the main fields, written back explicitly
+      const keep = { artist, album_artist: albumArtist, title, album: fields.album, track: pickTag(tagSets, 'track'), date: pickTag(tagSets, 'date') || pickTag(tagSets, 'year'), genre: pickTag(tagSets, 'genre') };
+      for (const [k, v] of Object.entries(keep)) if (v) args.push('-metadata', `${k}=${v}`);
+    }
+    args.push('-f', fmt.muxer, part);
+
     const r = await run(tools.ffmpeg, args, { signal });
     if (r.aborted || signal.aborted) return { status: 'STOP' };
     if (r.code !== 0 || !fs.existsSync(part)) {
@@ -140,16 +184,20 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       return { status: 'FAIL', name: baseName, note: lines[lines.length - 1] || 'conversion failed' };
     }
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
-    let note = dupNote + (isMp3 ? 'MP3 kept as is' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${settings.BitDepth === 24 ? 24 : 16}-bit` : 'lossless');
+    if (settings.KeepDates !== false) keepDates(file, dest);
+    let note = dupNote + (copy ? 'copied (no re-encode)' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${depth}-bit` : 'lossless');
+    if (artFile) note += ' | cover art resized';
     if (quality && quality.msg) note += ` | ${quality.msg}`;
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
+    if (healthMsg) note += ` | ${healthMsg}`;
     if (key) seen.add(key, length, outName);
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), ...(peakDb !== null ? { peakDb } : {}) };
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), ...(peakDb !== null ? { peakDb } : {}) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {
     try { fs.rmSync(part, { force: true }); } catch { /* leave it */ }
+    artCleanup();
   }
 }
 
