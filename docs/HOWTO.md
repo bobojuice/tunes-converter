@@ -1,6 +1,6 @@
 # How to install and use Tunes Converter
 
-Tunes Converter turns a folder of music files into MP3s with correct `Artist - Title` file names. It is a small
+Tunes Converter turns a folder of music files into MP3, AAC, FLAC, WAV, AIFF or Opus files with correct `Artist - Title` file names. It is a small
 app for Windows, macOS and Linux.
 
 ![Tunes Converter](screenshot.png)
@@ -86,7 +86,7 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 1. Open Tunes Converter.
 2. **Songs folder:** click **Browse** and choose the folder with your music (files directly in it are converted;
    subfolders are not searched).
-3. **Save MP3s to:** choose where the MP3s go. It must be a different folder from the songs folder. It is created
+3. **Save to:** choose where the converted files go. It must be a different folder from the songs folder. It is created
    if it does not exist.
 4. Press **START**. The progress bar and log show each file as it finishes.
 5. **Stop** ends the batch after cancelling the current file cleanly (no half-written files are left behind).
@@ -235,7 +235,7 @@ in `last-run.log` in the same folder.
 ## Uninstall
 
 Remove the app: on Windows uninstall it from **Settings > Apps** (or delete the folder if you used the zip); on macOS delete the app; on Linux delete the AppImage. Settings live in the folders listed
-under [Settings](#settings); delete those too if you want no trace. Your converted MP3s stay wherever you saved them.
+under [Settings](#settings); delete those too if you want no trace. Your converted music stays wherever you saved it.
 
 ## Build from source
 

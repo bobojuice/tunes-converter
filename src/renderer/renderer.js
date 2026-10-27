@@ -525,7 +525,7 @@
       if (p) { $('inDir').value = p; save({ In: p }); }
     });
     $('browseOut').addEventListener('click', async () => {
-      const p = await window.tc.pickFolder({ title: 'Choose where to save the MP3s', defaultPath: $('outDir').value });
+      const p = await window.tc.pickFolder({ title: 'Choose where to save the converted music', defaultPath: $('outDir').value });
       if (p) { $('outDir').value = p; save({ Out: p }); }
     });
     $('inDir').addEventListener('change', () => save({ In: $('inDir').value }));

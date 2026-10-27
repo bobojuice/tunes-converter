@@ -2,7 +2,7 @@
   "name": "tunes-converter",
   "productName": "Tunes Converter",
   "version": "2.4.1",
-  "description": "Convert folders of music to MP3 with correct Artist - Title names and an optional fake-quality check.",
+  "description": "Convert folders of music to MP3, AAC, FLAC, WAV, AIFF or Opus with correct Artist - Title names and an optional fake-quality check.",
   "main": "main.js",
   "license": "MIT",
   "private": true,
@@ -95,7 +95,7 @@
           ]
         }
       ],
-      "synopsis": "Convert music folders to MP3"
+      "synopsis": "Convert music folders to MP3, FLAC, WAV, AIFF and more"
     },
     "afterPack": "build/afterPack.js",
     "electronLanguages": [
