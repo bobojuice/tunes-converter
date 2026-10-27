@@ -10,6 +10,9 @@ const presetshare = require('./src/engine/presetshare');
 const { createWatcher, watchPlan } = require('./src/engine/watcher');
 const { downloadFfmpeg } = require('./src/engine/download');
 
+// Legacy build only: old Macs draw the window twice (ghosted layers) with GPU acceleration, so use software drawing.
+app.disableHardwareAcceleration();
+
 let win = null;
 const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
 const { EXTENSIONS } = require('./src/engine/batch');
