@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webUtils, webFrame } = require('electron');
 
 // The only things the window can ask the app to do.
 contextBridge.exposeInMainWorld('tc', {
@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld('tc', {
   clearDropped: () => ipcRenderer.invoke('drop:clear'),
   copyInstallCommand: () => ipcRenderer.invoke('app:copyInstallCommand'),
   checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  // Scales the whole window content down on short screens (never below 0.7, never above 1).
+  setZoom: (factor) => {
+    const f = Number(factor);
+    if (!Number.isFinite(f) || f < 0.7 || f > 1) return false;
+    webFrame.setZoomFactor(f);
+    return true;
+  },
   stop: () => ipcRenderer.invoke('batch:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

@@ -92,7 +92,7 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 5. **Stop** ends the batch after cancelling the current file cleanly (no half-written files are left behind).
 6. **Open output folder** jumps to the results.
 
-**Menu:** the **MENU** button (top right) opens every option, including keeping cover art, full artist names and opening the folder when finished.
+**Menu:** the **MENU** button (top right) opens the menu page, which holds every option (the **BACK** button, or the Escape key, returns to the converter), including keeping cover art, full artist names and opening the folder when finished.
 
 **Lossless and DJ use:** choose **WAV**, **AIFF** or **FLAC** and a **Bit depth** (16-bit is the most compatible with CDJs). This also fixes 32-bit float rips: they are converted to the depth you pick, with dither at 16-bit. **File names** lets you pick a pattern (Artist - Title, Title, Track - Artist - Title, or your own). **Tags** can keep everything, keep only the main fields, or remove all tags. **AIFF** is the best uncompressed choice for Rekordbox and CDJs: unlike WAV it keeps tags and cover art.
 
@@ -209,7 +209,7 @@ the app is closed:
 | `Presets`      | empty               | list of saved presets, each a name plus the conversion options (managed in Settings; up to 20) |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
-| `WinW`, `WinH` | `820`, `840`        | window size, saved when you close the app |
+| `WinW`, `WinH` | `820`, `1000`      | window size, saved when you close the app |
 | `FfmpegDir`    | empty               | folder containing `ffmpeg` and `ffprobe` (set by **Locate ffmpeg...**) |
 
 Use double backslashes (`\\`) in Windows paths inside the JSON file. Each value is checked on its own; an invalid

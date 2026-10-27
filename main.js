@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const settings = require('./src/engine/settings');
@@ -208,11 +208,20 @@ function registerIpc() {
 
 function createWindow() {
   nativeTheme.themeSource = 'dark';
+  // Never larger than the screen's usable area, and always placed fully on it (centered on the primary display).
+  const wa = screen.getPrimaryDisplay().workArea;
+  const saved = current();
+  const minW = 720;
+  const minH = 680; // below this even the 0.7 zoom floor would clip the controls
+  const width = Math.min(Math.max(saved.WinW, Math.min(minW, wa.width)), wa.width);
+  const height = Math.min(Math.max(saved.WinH, Math.min(minH, wa.height)), wa.height);
   win = new BrowserWindow({
-    width: current().WinW,
-    height: current().WinH,
-    minWidth: 720,
-    minHeight: 700,
+    width,
+    height,
+    x: Math.round(wa.x + (wa.width - width) / 2),
+    y: Math.round(wa.y + (wa.height - height) / 2),
+    minWidth: Math.min(minW, wa.width),
+    minHeight: Math.min(minH, wa.height),
     show: false,
     title: 'Tunes Converter',
     icon: fs.existsSync(path.join(__dirname, 'build', 'icon.png')) ? path.join(__dirname, 'build', 'icon.png') : undefined,
@@ -230,7 +239,7 @@ function createWindow() {
   win.once('ready-to-show', () => win.show());
   win.on('close', () => {
     try {
-      const b = win.getNormalBounds();
+      const b = win.getNormalBounds(); // the saved size is clamped to the screen again on the next start
       settings.save(paths().settings, base(), { WinW: b.width, WinH: b.height });
     } catch { /* remembering the size is best effort */ }
   });

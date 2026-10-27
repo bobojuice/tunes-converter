@@ -30,7 +30,7 @@ function defaults(desktopDir) {
     Presets: [],
     OpenWhenDone: false,
     WinW: 820,
-    WinH: 840,
+    WinH: 1000,
     FfmpegDir: ''
   };
 }

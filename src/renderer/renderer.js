@@ -538,10 +538,25 @@
       if (LOSSLESS.includes(s.Format)) { save({ BitDepth: s.BitDepth === 16 ? 24 : 16 }); return; }
       save({ Bitrate: cycle(bitrateList(s.Format), shownBitrate(s)) });
     });
-    $('gear').addEventListener('click', () => {
-      const open = $('panel').hidden;
+    // MENU swaps the main view for the menu page (same window); BACK / Escape returns. Nothing in the main view is torn down.
+    const setMenu = (open) => {
       $('panel').hidden = !open;
+      $('mainView').hidden = open;
+      $('gear').textContent = open ? 'BACK' : 'MENU';
+      $('gear').title = open ? 'Back to the converter' : 'Menu: all settings';
       $('gear').setAttribute('aria-expanded', String(open));
+      if (open) {
+        const first = $('panel').querySelector('select:not(:disabled), input:not(:disabled), button:not(:disabled)');
+        (first || $('gear')).focus();
+      } else {
+        $('gear').focus();
+        fitZoom(true);
+        drawAll();
+      }
+    };
+    $('gear').addEventListener('click', () => setMenu($('panel').hidden));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('panel').hidden && !$('firstRun').open) { e.preventDefault(); setMenu(false); }
     });
     $('setName').addEventListener('change', async () => {
       if ($('setName').value === 'custom') {
@@ -581,7 +596,13 @@
     for (const pad of document.querySelectorAll('#pads .pad')) pad.addEventListener('click', () => save({ Format: pad.dataset.fmt }));
     for (const opt of document.querySelectorAll('.opt')) opt.addEventListener('click', () => save({ [opt.dataset.opt]: !settings()[opt.dataset.opt] }));
     $('roQuality').addEventListener('click', () => save({ QualityCheck: cycle(MODES, settings().QualityCheck) }));
-    window.addEventListener('resize', drawAll);
+    window.addEventListener('resize', () => { drawAll(); fitZoom(); });
+    // content that changes height (ffmpeg banner, dropped-files bar) re-fits the zoom too
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => fitZoom(true));
+      for (const el of document.querySelectorAll('#banner, #dropped, .screen, .deck')) ro.observe(el);
+    }
+    fitZoom(true);
     $('start').addEventListener('click', async () => {
       if (running) return;
       setRunning(true);
@@ -670,6 +691,24 @@
       if (r.ok) { $('dlStatus').textContent = ''; applyFfmpeg({ found: r.found, mp3: r.mp3, path: r.path }); }
       else $('dlStatus').textContent = r.error || 'Download failed.';
     });
+  }
+
+  // On short windows the whole UI is scaled down (Electron zoom) instead of scrolling; the track list gets LOG_MIN px.
+  const LOG_MIN = 120;
+  let zoomNow = 1;
+  let lastPhys = { w: 0, h: 0 };
+  function fitZoom(force) {
+    if (!window.tc || !window.tc.setZoom || $('mainView').hidden) return;
+    const phys = { w: Math.round(window.innerWidth * zoomNow), h: Math.round(window.innerHeight * zoomNow) };
+    // A resize we caused ourselves by zooming leaves the physical window size unchanged: ignore it (no feedback loop).
+    if (!force && Math.abs(phys.w - lastPhys.w) < 2 && Math.abs(phys.h - lastPhys.h) < 2) return;
+    lastPhys = phys;
+    const app = document.querySelector('.app');
+    const log = document.querySelector('.log');
+    const needed = app.scrollHeight - log.offsetHeight + LOG_MIN; // CSS px, independent of the current zoom
+    const f = Math.min(1, Math.max(0.7, Math.floor((phys.h / needed) * 100) / 100));
+    if (Math.abs(f - zoomNow) < 0.01) return;
+    if (window.tc.setZoom(f)) zoomNow = f;
   }
 
   init();
