@@ -209,6 +209,40 @@ test('waveformPeaks: real decoded sine with a quiet second half', { skip }, asyn
   assert.ok(max(10, 90) > 3 * max(110, 190), `${max(10, 90)} vs ${max(110, 190)}`);
 });
 
+function sineWav(file, freq, secs, ampFn) {
+  const rate = 22050;
+  const n = Math.floor(rate * secs);
+  const data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin(2 * Math.PI * freq * i / rate) * 32000 * ampFn(i / rate)), i * 2);
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0, 'latin1'); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8, 'latin1'); h.write('fmt ', 12, 'latin1');
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28);
+  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36, 'latin1'); h.writeUInt32LE(data.length, 40);
+  fs.writeFileSync(file, Buffer.concat([h, data]));
+}
+
+test('waveformPeaks: rms and low bands match the peaks length and order loud/quiet and bass/treble', async () => {
+  const d = fresh('wfrms');
+  const loud = path.join(d, 'a.wav');
+  sineWav(loud, 440, 2, (t) => (t < 1 ? 1 : 0.05));
+  const r = await pb.waveformPeaks(loud);
+  assert.ok(r.rms instanceof Uint8Array && r.low instanceof Uint8Array);
+  assert.equal(r.rms.length, r.peaks.length);
+  assert.equal(r.low.length, r.peaks.length);
+  const avg = (a, x, y) => { let s = 0; for (let i = x; i < y; i++) s += a[i]; return s / (y - x); };
+  assert.ok(avg(r.rms, 10, 90) > 3 * avg(r.rms, 110, 190), 'loud half has a larger rms');
+  const bass = path.join(d, 'b.wav');
+  const treble = path.join(d, 't.wav');
+  sineWav(bass, 80, 1, () => 1);
+  sineWav(treble, 6000, 1, () => 1);
+  const rb = await pb.waveformPeaks(bass);
+  const rt = await pb.waveformPeaks(treble);
+  assert.ok(avg(rb.low, 10, 90) > 4 * avg(rt.low, 10, 90), `${avg(rb.low, 10, 90)} vs ${avg(rt.low, 10, 90)}`);
+  const rbad = await pb.waveformPeaks(path.join(d, 'missing.wav'));
+  assert.equal(rbad.rms.length, 0);
+  assert.equal(rbad.low.length, 0);
+});
+
 function makeArtMp3(dir, withArt) {
   const mp3 = path.join(dir, withArt ? 'art.mp3' : 'plain.mp3');
   if (!withArt) {

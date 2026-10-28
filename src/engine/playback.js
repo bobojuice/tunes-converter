@@ -113,7 +113,7 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     const artFile = path.join(tempRoot, `art-${n}.jpg`);
     const cleanup = () => { rm(out); rm(artFile); };
     ctrl = c;
-    let wf = { peaks: new Uint8Array(0), perSec: 100, duration: 0 };
+    let wf = { peaks: new Uint8Array(0), rms: new Uint8Array(0), low: new Uint8Array(0), perSec: 100, duration: 0 };
     let hasArt = false;
     try {
       wf = await waveformPeaks(out);
@@ -130,7 +130,7 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     ctrl = null;
     const token = crypto.randomBytes(12).toString('hex');
     current = { token, file: out, art: hasArt ? artFile : null };
-    return { ok: true, token, peaks: wf.peaks, perSec: wf.perSec, duration: wf.duration, hasArt };
+    return { ok: true, token, peaks: wf.peaks, rms: wf.rms, low: wf.low, perSec: wf.perSec, duration: wf.duration, hasArt };
   }
 
   function resolveToken(token) {
@@ -197,7 +197,7 @@ const MAX_PEAKS = 100 * 60 * 60;
 
 // Per-bin max |sample| (0..255) of a 16-bit PCM WAV, read as a stream. Never throws.
 async function waveformPeaks(wavFile, perSec = 100) {
-  const empty = () => ({ peaks: new Uint8Array(0), perSec, duration: 0 });
+  const empty = () => ({ peaks: new Uint8Array(0), rms: new Uint8Array(0), low: new Uint8Array(0), perSec, duration: 0 });
   let fh;
   try {
     if (!(perSec > 0)) return empty();
@@ -238,7 +238,15 @@ async function waveformPeaks(wavFile, perSec = 100) {
     const effPerSec = rate / binFrames;
     const bins = Math.min(MAX_PEAKS, Math.ceil(totalFrames / binFrames));
     const peaks = new Uint8Array(bins);
+    const rms = new Uint8Array(bins);
+    const low = new Uint8Array(bins);
     const maxArr = new Int32Array(bins);
+    const sumSq = new Float64Array(bins);
+    const lowSq = new Float64Array(bins);
+    const cnt = new Int32Array(bins);
+    // one-pole low-pass (~175 Hz) on the mono mix: the bass / kick band
+    const alpha = 1 - Math.exp(-2 * Math.PI * 175 / rate);
+    let lp = 0;
     const CHUNK = 1024 * 1024 - ((1024 * 1024) % frameBytes);
     let frame = 0; // global frame index
     let carry = Buffer.alloc(0);
@@ -248,18 +256,31 @@ async function waveformPeaks(wavFile, perSec = 100) {
       if (carry.length) { buf = Buffer.concat([carry, buf]); carry = Buffer.alloc(0); }
       const whole = buf.length - (buf.length % frameBytes);
       if (whole < buf.length) carry = Buffer.from(buf.subarray(whole));
-      const samples = whole / 2;
-      for (let i = 0; i < samples; i++) {
-        const bin = Math.floor((frame + Math.floor(i / channels)) / binFrames);
+      const frames = whole / frameBytes;
+      for (let f = 0; f < frames; f++) {
+        const bin = Math.floor((frame + f) / binFrames);
         if (bin >= bins) break;
-        let v = buf.readInt16LE(i * 2);
-        if (v < 0) v = -v;
-        if (v > maxArr[bin]) maxArr[bin] = v;
+        let sum = 0;
+        for (let c = 0; c < channels; c++) {
+          const s = buf.readInt16LE((f * channels + c) * 2);
+          sum += s;
+          const v = s < 0 ? -s : s;
+          if (v > maxArr[bin]) maxArr[bin] = v;
+        }
+        const mono = sum / channels;
+        lp += alpha * (mono - lp);
+        sumSq[bin] += mono * mono;
+        lowSq[bin] += lp * lp;
+        cnt[bin] += 1;
       }
-      frame += whole / frameBytes;
+      frame += frames;
     }
-    for (let b = 0; b < bins; b++) peaks[b] = Math.min(255, Math.max(0, Math.round(maxArr[b] / 32768 * 255)));
-    return { peaks, perSec: effPerSec, duration: totalFrames / rate };
+    const byte = (v) => Math.min(255, Math.max(0, Math.round(v / 32768 * 255)));
+    for (let b = 0; b < bins; b++) {
+      peaks[b] = byte(maxArr[b]);
+      if (cnt[b] > 0) { rms[b] = byte(Math.sqrt(sumSq[b] / cnt[b])); low[b] = byte(Math.sqrt(lowSq[b] / cnt[b])); }
+    }
+    return { peaks, rms, low, perSec: effPerSec, duration: totalFrames / rate };
   } catch {
     return empty();
   } finally {

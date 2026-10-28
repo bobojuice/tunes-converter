@@ -107,13 +107,13 @@
       </div>
     </div>
     <div class="title-row">
+      <span id="eqIcon" class="eq-ic" aria-hidden="true" hidden><i></i><i></i><i></i></span>
       <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
       <div id="transport" class="transport" hidden>
         <button id="playPause" class="play-stop" type="button" aria-label="Pause playback" title="Pause playback" disabled>&#10074;&#10074;</button>
         <button id="playStop" class="play-stop" type="button" aria-label="Stop playback" title="Stop playback" disabled>&#9632;</button>
         <span id="playTime" class="play-time">0:00 / 0:00</span>
         <span class="tp-ctl"><span class="tp-l" aria-hidden="true">VOL</span><input id="vol" class="tp-range" type="range" min="0" max="100" step="1" value="100" aria-label="Volume"></span>
-        <span class="tp-ctl tp-tempo"><span class="tp-l" aria-hidden="true">TEMPO</span><input id="tempo" class="tp-range" type="range" min="-8" max="8" step="0.1" value="0" aria-label="Tempo, percent faster or slower"><span id="tempoVal" class="tp-v" aria-hidden="true">+0.0%</span></span>
       </div>
     </div>
 
@@ -183,11 +183,13 @@
     <div class="platter-col">
       <div id="track" class="platter" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="ring-mask"></div>
+        <div class="cdj-vinyl" aria-hidden="true"></div>
         <div class="spin" aria-hidden="true">
           <div class="deck-face"></div>
           <div id="art" class="art"></div>
           <span class="spin-dot"></span>
         </div>
+        <div id="cdjPockets" class="cdj-pockets" aria-hidden="true"></div>
         <div class="cdj-rim" aria-hidden="true"></div>
         <div class="cdj-head" aria-hidden="true"></div>
         <span class="cdj-cue" aria-hidden="true" hidden></span>

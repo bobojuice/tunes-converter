@@ -459,12 +459,12 @@
   let ctAt = 0;
   let lastMiniCol = -1;
   let miniCache = null;
+  let bigCols = null;
   let meterLvl = -60;
   let meterLit = -1;
   let meterTxt = '';
   let ovDrag = false;
   let volume = 100;
-  let tempo = 0;
   try {
     const saved = localStorage.getItem(VOL_KEY);
     if (saved !== null && Number.isFinite(Number(saved))) volume = clamp(Math.round(Number(saved)), 0, 100);
@@ -508,11 +508,20 @@
   function setRowPlaying(row, on) {
     if (!row) return;
     row.classList.toggle('playing', on);
-    const btn = row.querySelector('.play');
+    syncRowBtn(row);
+  }
+  // the row button is play / pause for its own track
+  function syncRowBtn(row) {
+    const r = row || playRow;
+    if (!r) return;
+    const btn = r.querySelector('.play');
     if (!btn) return;
-    btn.textContent = on ? '■' : '▶';
-    const label = `${on ? 'Stop' : 'Play'} ${row.dataset.play}`;
+    const isCur = r === playRow && playState !== 'idle';
+    const pausable = isCur && !(playState === 'playing' && audio && audio.paused);
+    btn.textContent = pausable ? '❚❚' : '▶';
+    const label = `${pausable ? 'Pause' : 'Play'} ${r.dataset.play}`;
     btn.setAttribute('aria-label', label);
+    btn.title = pausable ? 'Pause preview' : 'Play preview (never changes files)';
   }
   function syncPlayable() {
     const on = Boolean(state && settings().PlayPreview);
@@ -542,21 +551,6 @@
     if (audio) audio.volume = volume / 100;
     if (persist) { try { localStorage.setItem(VOL_KEY, String(volume)); } catch (err) { /* not saved */ } }
   }
-  function applyRate() {
-    if (!audio) return;
-    const r = 1 + tempo / 100;
-    audio.defaultPlaybackRate = r; // setting a new src resets playbackRate to this
-    audio.playbackRate = r;
-    try { audio.preservesPitch = false; audio.webkitPreservesPitch = false; } catch (err) { /* vinyl-style pitch is optional */ }
-  }
-  function setTempo(t) {
-    tempo = clamp(Math.round(t * 10) / 10, -8, 8);
-    $('tempo').value = String(tempo);
-    $('tempoVal').textContent = `${tempo < 0 ? '-' : '+'}${Math.abs(tempo).toFixed(1)}%`;
-    $('tempo').title = `Tempo ${$('tempoVal').textContent} (double-click to reset)`;
-    applyRate();
-    renderSpin();
-  }
   function togglePause() {
     if (playState !== 'playing' || !audio) return;
     if (audio.paused) audio.play().catch(() => {});
@@ -568,11 +562,13 @@
     const label = paused ? 'Resume playback' : 'Pause playback';
     $('playPause').setAttribute('aria-label', label);
     $('playPause').title = label;
+    $('eqIcon').classList.toggle('paused', paused);
+    syncRowBtn();
     ctLast = -1;
     renderSpin();
   }
 
-  // platter: 33 1/3 rpm = 1.8 s per turn, scaled by the tempo; paused with the audio
+  // platter: 33 1/3 rpm = 1.8 s per turn; paused with the audio
   function renderSpin() {
     const pl = $('track');
     const on = playState === 'playing';
@@ -581,7 +577,6 @@
     pl.classList.toggle('record', rec);
     pl.classList.toggle('cdj', on && !rec);
     pl.classList.toggle('paused', on && Boolean(audio) && audio.paused);
-    pl.style.setProperty('--rev', `${(1.8 / (1 + tempo / 100)).toFixed(3)}s`);
     const cue = pl.querySelector('.cdj-cue');
     const letter = on && !rec && playRow ? playRow.dataset.flag : '';
     cue.hidden = !letter;
@@ -641,7 +636,6 @@
       audio.crossOrigin = 'anonymous';
       audio.preload = 'auto';
       audio.volume = volume / 100;
-      applyRate();
       audio.addEventListener('ended', () => { if (playState !== 'idle') stopPlayback(); });
       audio.addEventListener('play', () => { if (playState === 'playing') syncPause(); });
       audio.addEventListener('pause', () => { if (playState === 'playing') syncPause(); });
@@ -692,8 +686,10 @@
     playState = 'idle';
     if (eqRaf) { cancelAnimationFrame(eqRaf); eqRaf = 0; }
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
-    setRowPlaying(playRow, false);
+    const prevRow = playRow;
     playRow = null;
+    setRowPlaying(prevRow, false);
+    $('eqIcon').hidden = true;
     peaks.fill(0);
     lastTime = '';
     wf = null;
@@ -732,7 +728,6 @@
     if (!r || !r.ok) { playFailed((r && r.error) || 'Could not prepare this track.'); return; }
     try {
       audio.src = r.url;
-      applyRate();
       await audio.play();
     } catch (err) {
       if (req !== playReq) return;
@@ -740,17 +735,14 @@
       return;
     }
     if (req !== playReq) return;
-    const raw = r.peaks;
-    wf = raw && raw.length > 0
-      ? { a: ArrayBuffer.isView(raw) ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength) : new Uint8Array(raw), per: r.perSec > 0 ? r.perSec : 100 }
-      : null;
+    wf = buildWf(r);
     trackLen = r.duration > 0 ? r.duration : 0;
     miniCache = null;
     lastMiniCol = -1;
     ctLast = -1;
     playState = 'playing';
-    applyRate();
-    setPlayStatus(`▶ ${baseName(name)}`);
+    $('eqIcon').hidden = false;
+    setPlayStatus(baseName(name));
     showTransport(true);
     syncPause();
     enterLive();
@@ -774,9 +766,47 @@
 
   function togglePlay(row) {
     if (!settings().PlayPreview) return;
-    if (row === playRow && playState !== 'idle') stopPlayback();
+    if (row === playRow && playState === 'playing') togglePause(); // the row button is play / pause; stopping is the screen's stop key
+    else if (row === playRow && playState === 'preparing') return;
     else startPlayback(row);
   }
+
+  // Waveform layers from the decoder: peak envelope, RMS body and bass-band core, each scaled to its own track-wide
+  // 98th percentile so loud and quiet masters both read with structure.
+  const asU8 = (raw) => (raw && raw.length ? (ArrayBuffer.isView(raw) ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength) : new Uint8Array(raw)) : null);
+  function p98k(a) {
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < a.length; i++) hist[a[i]] += 1;
+    const goal = a.length * 0.98;
+    let acc = 0;
+    let p = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= goal) { p = v; break; } }
+    return 1 / Math.max(p, 6);
+  }
+  function buildWf(r) {
+    const pk = asU8(r.peaks);
+    if (!pk) return null;
+    const n = pk.length;
+    const rm = asU8(r.rms);
+    const lo = asU8(r.low);
+    const rms = rm && rm.length === n ? rm : pk; // older engine: fall back to the peaks
+    const low = lo && lo.length === n ? lo : new Uint8Array(n);
+    return { a: pk, r: rms, l: low, per: r.perSec > 0 ? r.perSec : 100, kp: p98k(pk), kr: p98k(rms), kl: p98k(low) };
+  }
+  // 0..1 heights (peak envelope, body, core) for column i of `o` from the raw 0..255 values; -1 = no audio here
+  function layerH(w, o, i, p, r, l) {
+    const pe = Math.min(1, p * w.kp * 0.97) ** 1.2;
+    const bo = Math.min(pe, Math.min(1, r * w.kr) ** 1.7 * 0.8);
+    o.p[i] = pe;
+    o.b[i] = bo;
+    o.c[i] = Math.min(bo, Math.min(1, l * w.kl) ** 1.9 * 0.62);
+  }
+  const mkCols = (n) => ({ p: new Float32Array(n), b: new Float32Array(n), c: new Float32Array(n), h: new Uint8Array(n) });
+  const LAYER = {
+    // [peak envelope, body, core] for the played / upcoming part
+    played: ['rgba(46, 167, 255, 0.34)', '#2EA7FF', '#D8EEFF'],
+    next: ['rgba(46, 167, 255, 0.14)', '#1C6FA8', '#6E9CC0'],
+  };
 
   // Big canvas while playing: faint live EQ bars behind a scrolling zoomed waveform with a fixed orange centre line.
   function drawPlay() {
@@ -815,25 +845,35 @@
       const half = maxH / 2;
       const cx = Math.round(w / 2);
       const n = wf.a.length;
-      const col = (x) => {
+      const W = Math.floor(w);
+      if (!bigCols || bigCols.p.length < W) bigCols = mkCols(W);
+      const cols = bigCols;
+      const have = cols.h;
+      have.fill(0);
+      for (let x = 0; x < W; x++) {
         const t0 = t + ((x - w / 2) / w) * WIN;
-        if (t0 < 0) return -1;
+        if (t0 < 0) continue;
         const i0 = Math.floor(t0 * wf.per);
-        if (i0 >= n) return -1;
+        if (i0 >= n) continue;
         const i1 = Math.min(n - 1, Math.max(i0, Math.floor((t0 + WIN / w) * wf.per)));
-        let m = 0;
-        for (let k = i0; k <= i1; k++) if (wf.a[k] > m) m = wf.a[k];
-        return m;
-      };
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.fillStyle = pass === 0 ? COL.blue : COL.dim; // played part bright, upcoming dimmer
+        let pm = 0; let rs = 0; let ls = 0;
+        for (let k = i0; k <= i1; k++) { if (wf.a[k] > pm) pm = wf.a[k]; rs += wf.r[k]; ls += wf.l[k]; }
+        const cnt = i1 - i0 + 1;
+        layerH(wf, cols, x, pm, rs / cnt, ls / cnt);
+        have[x] = 1;
+      }
+      for (let pass = 0; pass < 2; pass++) { // played part bright, upcoming dimmer
+        const set = pass === 0 ? LAYER.played : LAYER.next;
         const x0 = pass === 0 ? 0 : cx;
-        const x1 = pass === 0 ? cx : Math.floor(w);
-        for (let x = x0; x < x1; x++) {
-          const m = col(x);
-          if (m < 0) continue;
-          const amp = Math.max(1, (m / 255) ** 0.8 * half);
-          ctx.fillRect(x, cy - amp, 1, amp * 2);
+        const x1 = pass === 0 ? cx : W;
+        for (let layer = 0; layer < 3; layer++) {
+          ctx.fillStyle = set[layer];
+          const arr = layer === 0 ? cols.p : layer === 1 ? cols.b : cols.c;
+          for (let x = x0; x < x1; x++) {
+            if (!have[x]) continue;
+            const amp = Math.max(layer === 0 ? 1 : 0.5, arr[x] * half);
+            ctx.fillRect(x, cy - amp, 1, amp * 2);
+          }
         }
       }
       ctx.fillStyle = COL.orange;
@@ -866,28 +906,36 @@
     }
     if (!miniCache || miniCache.w !== w || miniCache.src !== wf) {
       const n = wf.a.length;
-      const cols = new Uint8Array(w);
-      for (let x = 0; x < w; x++) {
-        const i0 = Math.min(n - 1, Math.floor((x / w) * n));
-        const i1 = Math.max(i0, Math.floor(((x + 1) / w) * n) - 1);
-        let m = 0;
-        for (let k = i0; k <= i1; k++) if (wf.a[k] > m) m = wf.a[k];
-        cols[x] = m;
+      const W = Math.floor(w);
+      const cols = mkCols(W);
+      for (let x = 0; x < W; x++) {
+        const i0 = Math.min(n - 1, Math.floor((x / W) * n));
+        const i1 = Math.max(i0, Math.floor(((x + 1) / W) * n) - 1);
+        let pm = 0; let rs = 0; let ls = 0;
+        for (let k = i0; k <= i1; k++) { if (wf.a[k] > pm) pm = wf.a[k]; rs += wf.r[k]; ls += wf.l[k]; }
+        const cnt = i1 - i0 + 1;
+        layerH(wf, cols, x, pm, rs / cnt, ls / cnt);
       }
       miniCache = { w, src: wf, cols };
     }
-    const cy = h / 2;
-    ctx.fillStyle = COL.blue;
+    // half waveform sitting on the baseline, like the CDJ overview
+    const top = 2;
+    const full = h - top;
+    const c = miniCache.cols;
+    const W = c.p.length;
     for (let pass = 0; pass < 2; pass++) {
-      ctx.globalAlpha = pass === 0 ? 0.95 : 0.4;
+      const set = pass === 0 ? LAYER.played : LAYER.next;
       const x0 = pass === 0 ? 0 : Math.ceil(px);
-      const x1 = pass === 0 ? Math.min(w, Math.ceil(px)) : w;
-      for (let x = x0; x < x1; x++) {
-        const amp = Math.max(1, (miniCache.cols[x] / 255) ** 0.8 * (cy - 1));
-        ctx.fillRect(x, cy - amp, 1, amp * 2);
+      const x1 = pass === 0 ? Math.min(W, Math.ceil(px)) : W;
+      for (let layer = 0; layer < 3; layer++) {
+        ctx.fillStyle = set[layer];
+        const arr = layer === 0 ? c.p : layer === 1 ? c.b : c.c;
+        for (let x = x0; x < x1; x++) {
+          const amp = Math.max(layer === 0 ? 1 : 0.5, arr[x] * full);
+          ctx.fillRect(x, h - amp, 1, amp);
+        }
       }
     }
-    ctx.globalAlpha = 1;
   }
 
   function setProgress(index, total) {
@@ -1198,10 +1246,14 @@
     $('playStop').addEventListener('click', () => stopPlayback());
     $('playPause').addEventListener('click', () => togglePause());
     setVolume(volume, false);
-    setTempo(0);
     $('vol').addEventListener('input', () => setVolume(Number($('vol').value), true));
-    $('tempo').addEventListener('input', () => setTempo(Number($('tempo').value)));
-    $('tempo').addEventListener('dblclick', () => setTempo(0));
+    // CDJ jog finger pockets: 24 ovals around the vinyl ring (they turn with the rim)
+    const pockets = $('cdjPockets');
+    for (let i = 0; i < 24; i++) {
+      const p = document.createElement('i');
+      p.style.transform = `rotate(${i * 15}deg)`;
+      pockets.appendChild(p);
+    }
     // skim strip: click or drag to seek
     const ovFrac = (e) => { const r = $('mini').getBoundingClientRect(); return clamp((e.clientX - r.left) / (r.width || 1), 0, 1); };
     const ovShow = (e) => {

@@ -91,16 +91,20 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .play-time { font: 11.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
 .tp-ctl { display: flex; align-items: center; gap: 5px; }
 .tp-l { font: 9px var(--mono); letter-spacing: 0.1em; color: var(--lcd-dim); }
-.tp-v { min-width: 44px; text-align: right; font: 10.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
+.eq-ic { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; width: 13px; height: 13px; }
+.eq-ic i { display: block; width: 3px; height: 100%; border-radius: 1px; background: var(--orange); transform-origin: 50% 100%; transform: scaleY(0.5); animation: eq-bounce 0.8s ease-in-out infinite alternate; }
+.eq-ic i:nth-child(2) { animation-duration: 0.55s; animation-delay: -0.3s; }
+.eq-ic i:nth-child(3) { animation-duration: 0.95s; animation-delay: -0.55s; }
+.eq-ic.paused i { animation: none; transform: scaleY(0.22); }
+@keyframes eq-bounce { from { transform: scaleY(0.2); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .eq-ic i { animation: none; } .eq-ic i:nth-child(2) { transform: scaleY(0.9); } .eq-ic i:nth-child(3) { transform: scaleY(0.6); } }
 .tp-range { -webkit-appearance: none; appearance: none; width: 64px; height: 16px; margin: 0; padding: 0; background: transparent; cursor: pointer; }
 .tp-range::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: var(--lcd-edge); }
 .tp-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 14px; margin-top: -5.5px; border-radius: 2px; border: 1px solid var(--lcd); background: var(--blue); }
-#tempo::-webkit-slider-thumb { background: var(--orange); }
 .tp-range:hover::-webkit-slider-runnable-track { background: #2b5b69; }
 .tp-range:focus-visible { outline-offset: 1px; }
 .narrow .tp-l { display: none; }
 .narrow .tp-range { width: 52px; }
-.tiny .tp-tempo { display: none; }
 .wave { display: block; width: 100%; height: 70px; }
 .wave.seekable { cursor: pointer; }
 .overview { position: relative; height: 40px; }
@@ -115,6 +119,8 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .ov-head { position: absolute; top: 0; height: 38px; width: 0; border-left: 2px solid var(--orange); left: 0; pointer-events: none; }
 /* while a track is loaded the strip is a scrubber; the batch ruler and flags are hidden (not removed) and come back after */
 .overview.scrub { cursor: pointer; touch-action: none; }
+.overview.scrub .ov-strip { top: 4px; height: 34px; }
+.overview.scrub .minicv { height: 34px; }
 .overview.scrub .ruler, .overview.scrub .markers { visibility: hidden; }
 .ov-tip { position: absolute; top: 0; height: 16px; padding: 0 5px; transform: translateX(-50%); border-radius: 3px; background: rgba(0, 0, 0, 0.7); border: 1px solid var(--lcd-edge); color: var(--lcd-hi); font: 10.5px/14px var(--mono); white-space: nowrap; pointer-events: none; }
 .readouts { display: grid; grid-template-columns: 90px 90px 1fr 90px 90px; gap: 10px; align-items: center; margin-top: 8px; }
@@ -154,7 +160,18 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .knob-ticks { position: absolute; inset: 0; }
 .knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #3a3f47; }
 .knob-ticks b.on { background: var(--blue); }
-.knob .cap { position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%; background: #1e2127; border: 1px solid #3a3f47; }
+.knob .cap {
+  position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%; border: 1px solid #3a3f47;
+  background: radial-gradient(circle at 32% 26%, #3b414b 0, #262a31 34%, #17191e 78%, #121418 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.07),
+    inset -3px -4px 7px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 8px rgba(0, 0, 0, 0.65);
+}
+.knob .cap::before { content: ""; position: absolute; left: 7px; top: 3px; width: 30px; height: 17px; border-radius: 50%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0)); pointer-events: none; }
 .knob:hover:not(:disabled) .cap { border-color: #5a616c; }
 .knob .ptr { position: absolute; left: 35px; top: 14px; width: 2px; height: 20px; background: var(--blue); transform-origin: 1px 22px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 32px; width: 52px; text-align: center; font: 500 11px var(--mono); color: var(--ink); }
@@ -186,7 +203,7 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .platter-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .platter { position: relative; width: 224px; height: 224px; border-radius: 50%; --p: 0; background: conic-gradient(var(--blue) 0 calc(var(--p) * 1%), #1b1e24 calc(var(--p) * 1%) 100%); }
 .ring-mask { position: absolute; inset: 7px; border-radius: 50%; background: var(--bg); }
-/* the disc turns (33 1/3 rpm = 1.8 s per turn, scaled by tempo in JS via --rev); the progress ring and its marker stay put */
+/* the disc turns (33 1/3 rpm = 1.8 s per turn); the progress ring and its marker stay put */
 .spin { position: absolute; inset: 0; border-radius: 50%; }
 .platter.record .spin { animation: platter-spin var(--rev, 1.8s) linear infinite; }
 .platter.record.paused .spin { animation-play-state: paused; }
@@ -329,17 +346,33 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 
 /* CDJ-3000 look while a track plays (the PlatterSpin setting switches to the spinning record): still art, a turning LED rim,
    a playhead sweeping the ring (--ph, set every frame), the played part dimmer behind it, a cue pill at the top */
-.cdj-rim, .cdj-head, .cdj-cue { display: none; }
+.cdj-rim, .cdj-head, .cdj-cue, .cdj-vinyl, .cdj-pockets { display: none; }
 .platter.cdj { background: conic-gradient(rgba(255, 140, 40, 0.38) 0 var(--ph, 0deg), #1b1e24 var(--ph, 0deg) 360deg); }
 .platter.cdj .marker { display: none; }
+/* jog geometry: cover art about 76% of the platter, a black vinyl ring around it with a chrome lip, finger pockets, thin LED dashes */
+.platter.cdj .cdj-vinyl {
+  display: block; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
+  background:
+    conic-gradient(from 35deg, rgba(255, 255, 255, 0) 0 8%, rgba(255, 255, 255, 0.05) 14%, rgba(255, 255, 255, 0) 22% 55%, rgba(255, 255, 255, 0.04) 62%, rgba(255, 255, 255, 0) 70% 100%),
+    radial-gradient(circle closest-side, #181a1f 0 79%, #121317 90%, #0b0c0e 96%, #20232a 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 6px rgba(0, 0, 0, 0.6);
+}
+.platter.cdj .deck-face, .platter.cdj .art { inset: 27px; border: 0; box-shadow: 0 0 0 1px #d4dae1, 0 0 0 2.5px #040405, 0 0 7px 3px rgba(0, 0, 0, 0.55); }
+.platter.cdj .cdj-pockets { display: block; position: absolute; inset: 0; pointer-events: none; animation: platter-spin var(--rev, 1.8s) linear infinite; }
+.platter.cdj .cdj-pockets i {
+  position: absolute; left: 50%; top: 14px; width: 18px; height: 10px; margin-left: -9px; border-radius: 50%; transform-origin: 9px 98px;
+  background: radial-gradient(ellipse at 50% 68%, #010102 0, #050506 50%, #101215 100%);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 1), inset 0 -1px 1px rgba(255, 255, 255, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.9), 0 1px 0 1px rgba(255, 255, 255, 0.13), 0 -1px 0 1px rgba(255, 255, 255, 0.05);
+}
 .platter.cdj .cdj-rim {
   display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: repeating-conic-gradient(rgba(255, 255, 255, 0.92) 0 2deg, rgba(255, 255, 255, 0) 2deg 6deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px) calc(100% - 9px), transparent calc(100% - 9px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px) calc(100% - 9px), transparent calc(100% - 9px));
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.85) 0 0.9deg, rgba(255, 255, 255, 0) 1.7deg 6deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
   animation: platter-spin var(--rev, 1.8s) linear infinite;
 }
-.platter.cdj.paused .cdj-rim { animation-play-state: paused; }
+.platter.cdj.paused .cdj-rim, .platter.cdj.paused .cdj-pockets { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .platter.cdj .cdj-rim, .platter.cdj .cdj-pockets { animation: none; } }
 .platter.cdj .cdj-head {
   display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   transform: rotate(var(--ph, 0deg));
@@ -349,7 +382,7 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   filter: drop-shadow(0 0 4px var(--orange)) drop-shadow(0 0 8px rgba(255, 140, 40, 0.7));
 }
 .platter.cdj .cdj-cue {
-  display: block; position: absolute; left: 50%; top: 9px; transform: translateX(-50%); min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box;
+  display: block; position: absolute; left: 50%; top: -1px; transform: translateX(-50%); min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box;
   border-radius: 7px; font: 700 10px/14px var(--cond); text-align: center; color: #0b0c0e; box-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
 }
 .platter.cdj .cdj-cue[hidden] { display: none; }
