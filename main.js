@@ -127,13 +127,13 @@ function syncWatcher() {
   const s = current();
   const plan = watchPlan(s);
   if (!plan.ok) { stopWatcher(); setWatchInfo({ active: false, reason: plan.reason }); return; }
-  const key = JSON.stringify([s.In, s.Out, s.Recurse]);
+  const key = JSON.stringify([s.In, s.Out, s.SecondOut, s.Recurse]);
   if (watcher && key === watchKey) { setWatchInfo(watchMissing ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' }); return; }
   stopWatcher();
   setWatchInfo({ active: true, reason: '' });
   watchKey = key;
   watcher = createWatcher({
-    dir: s.In, recurse: s.Recurse, outDir: s.Out,
+    dir: s.In, recurse: s.Recurse, outDir: [s.Out, s.SecondOut],
     isBusy: () => batchSlot.busy,
     onLog: appendLog,
     onMissing: (gone) => {

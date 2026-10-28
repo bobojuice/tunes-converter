@@ -10,6 +10,7 @@ const { checkClipping } = require('./clipping');
 const { songKey } = require('./duplicates');
 const { checkHealth } = require('./health');
 const { findArt, resizeArt } = require('./art');
+const { playerNote } = require('./players');
 
 async function probe(ffprobe, file, signal) {
   const r = await run(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { signal });
@@ -198,8 +199,16 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
     if (healthMsg) note += ` | ${healthMsg}`;
+    // Player check: flagged only, from what was actually written (the source rate when it was copied or kept).
+    let playerMsg = '';
+    if (settings.PlayerModel && settings.PlayerModel !== 'off') {
+      const srcRate = Number(audio.sample_rate) || null;
+      const rate = fmt.depth || copy ? srcRate : fmt === FORMATS.opus ? 48000 : settings.SampleRate; // Opus is always written at 48 kHz
+      playerMsg = playerNote(settings.PlayerModel, { format: settings.Format in FORMATS ? settings.Format : 'mp3', rate, depth: fmt.depth ? depth : null });
+      if (playerMsg) note += ` | ${playerMsg}`;
+    }
     if (key) seen.add(key, length, outName);
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), ...(peakDb !== null ? { peakDb } : {}) };
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), player: Boolean(playerMsg), ...(peakDb !== null ? { peakDb } : {}) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {

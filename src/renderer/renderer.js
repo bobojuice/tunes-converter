@@ -5,7 +5,7 @@
   const MODES = ['off', 'warn', 'skip'];
   const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'Opus' };
   const LOSSLESS = ['flac', 'wav', 'aiff'];
-  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
+  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'PlayerModel'];
   const SHORT = { mp3: 'MP3', m4a: 'AAC', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'OPUS' };
   const MODE_LABEL = { off: 'OFF', warn: 'WARN', skip: 'SKIP' };
   const MODE_TIP = {
@@ -13,7 +13,7 @@
     warn: 'Quality check: convert everything but flag low-quality files. Click to change.',
     skip: 'Quality check: do not convert files below the minimum. Click to change.'
   };
-  const COL = { blue: '#2EA7FF', dim: '#1C6FA8', orange: '#FF8A1F', red: '#FF5C7A', pink: '#FF7AD9', teal: '#37D6B0' };
+  const COL = { blue: '#2EA7FF', dim: '#1C6FA8', orange: '#FF8A1F', red: '#FF5C7A', pink: '#FF7AD9', teal: '#37D6B0', violet: '#B48CFF' };
   const HELP_URL = 'https://github.com/bobojuice/tunes-converter/blob/main/docs/HOWTO.md';
 
   let state = null;
@@ -332,6 +332,7 @@
     if (/clipping|over 0|dBFS/i.test(note)) { color = COL.red; why = 'clipping'; }
     else if (/duplicate/i.test(note)) { color = COL.orange; why = 'duplicate'; }
     else if (res.health) { color = COL.teal; why = 'health check'; }
+    else if (res.player) { color = COL.violet; why = 'player check'; }
     else if (['WARN', 'LOW', 'FAKE'].includes(res.status)) { color = COL.pink; why = `quality ${res.status}`; }
     if (!color) return;
     const n = flags.length;

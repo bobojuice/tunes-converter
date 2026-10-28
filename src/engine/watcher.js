@@ -14,8 +14,9 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
   // Canonical keys (symlinks, junctions and 8.3 names resolved) so another spelling of the same place compares equal.
   const fold = (p) => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p);
   const key = (p) => fold(canon(p).replace(/[\\/]+$/, ''));
-  const outAbs = outDir ? key(outDir) : '';
-  const inOut = (p) => { if (!outAbs) return false; const k = key(p); return k === outAbs || k.startsWith(outAbs + path.sep); };
+  // `outDir` is one output folder or a list of them (main output and second output); none of them is ever watched.
+  const outAbs = [].concat(outDir || []).filter(Boolean).map(key);
+  const inOut = (p) => { if (!outAbs.length) return false; const k = key(p); return outAbs.some((o) => k === o || k.startsWith(o + path.sep)); };
 
   const known = new Set(); // handled, or present before the watch started
   const pending = new Map(); // path -> { size, since }

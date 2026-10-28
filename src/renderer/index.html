@@ -57,6 +57,9 @@
       <div class="inline" data-show="second"><input id="setSecondOut" type="text" data-key="SecondOut" spellcheck="false" autocomplete="off" placeholder="Folder for the second copy"><button id="browseSecond" class="btn ghost small" type="button">Browse</button></div>
       <label for="setDup">Duplicate songs</label>
       <select id="setDup" data-key="DuplicateMode"><option value="off">Off</option><option value="warn">Warn in the log</option><option value="skip">Skip extra copies</option></select>
+      <label for="setPlayer">Player check</label>
+      <select id="setPlayer" data-key="PlayerModel"><option value="off">Off</option><option value="cdj2000">CDJ-2000 (original)</option><option value="cdj850">CDJ-850</option><option value="cdj900nxs">CDJ-900NXS</option><option value="cdj2000nxs">CDJ-2000NXS</option><option value="cdj2000nxs2">CDJ-2000NXS2</option><option value="cdj3000">CDJ-3000</option><option value="cdjtour1">CDJ-TOUR1</option><option value="xdj1000mk2">XDJ-1000MK2</option><option value="xdjxz">XDJ-XZ</option><option value="xdjrx3">XDJ-RX3</option></select>
+      <span class="help">Flags files a CDJ/XDJ may not play, from Pioneer's published specs. Nothing is changed. Check your player's firmware. USB sticks: FAT32 (or HFS+ on Mac) is the safest format.</span>
       <label for="setTags">Tags</label>
       <select id="setTags" data-key="TagMode"><option value="keep">Keep all tags</option><option value="clean">Keep main fields only</option><option value="strip">Remove all tags</option></select>
     </div>

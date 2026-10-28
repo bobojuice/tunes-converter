@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { FORMAT_KEYS } = require('./formats');
+const { PLAYER_KEYS } = require('./players');
 const { DEFAULT_TEMPLATE, validTemplate, validFolderTemplate } = require('./naming');
 
 const TAG_MODES = ['keep', 'clean', 'strip']; // keep everything | keep the main fields only | no tags at all
@@ -36,6 +37,7 @@ function defaults(desktopDir) {
     KeepDates: true,
     SaveReport: false,
     WatchFolder: false,
+    PlayerModel: 'off',
     Presets: [],
     OpenWhenDone: false,
     WinW: 820,
@@ -46,7 +48,7 @@ function defaults(desktopDir) {
 
 // A preset remembers the conversion options only, never folders, window size or the ffmpeg location.
 const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode',
-  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
+  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'PlayerModel'];
 const MAX_PRESETS = 20;
 const MAX_PRESET_NAME = 40;
 
@@ -91,6 +93,7 @@ function merge(base, raw) {
   if (typeof raw.SecondOut === 'string' && raw.SecondOut.length <= 1024 && !raw.SecondOut.includes('\0')) s.SecondOut = raw.SecondOut.trim();
   if (raw.SecondFormat === 'off' || FORMAT_KEYS.includes(raw.SecondFormat)) s.SecondFormat = raw.SecondFormat;
   if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
+  if (raw.PlayerModel === 'off' || PLAYER_KEYS.includes(raw.PlayerModel)) s.PlayerModel = raw.PlayerModel;
   for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }

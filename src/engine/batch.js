@@ -6,6 +6,7 @@ const { NameAllocator, folderPath } = require('./naming');
 const { FORMATS } = require('./formats');
 const { hasEncoder } = require('./tools');
 const { SeenSongs } = require('./duplicates');
+const { PLAYERS, playerPreflight } = require('./players');
 
 const EXTENSIONS = new Set(['.flac', '.wav', '.aiff', '.aif', '.m4a', '.ogg', '.opus', '.wma', '.mp3']);
 
@@ -32,11 +33,12 @@ function canon(p) {
 }
 const sameFolder = (a, b) => samePath(canon(a), canon(b));
 
-function summarise(c) {
+function summarise(c, playerLabel = '') {
   let s = `Done: ${c.OK + c.WARN} converted, ${c.SKIP} skipped, ${c.FAIL} failed.`;
   if (c.WARN) s += ` ${c.WARN} flagged as low quality.`;
   if (c.CLIPPED) s += ` ${c.CLIPPED} with clipping or peaks over 0 dBFS.`;
   if (c.HEALTH) s += ` ${c.HEALTH} with health flags.`;
+  if (c.PLAYER) s += ` ${c.PLAYER} may not play on ${playerLabel || 'the chosen player'}.`;
   if (c.DUPLICATE) s += ` ${c.DUPLICATE} possible duplicate${c.DUPLICATE === 1 ? '' : 's'}.`;
   if (c.FAKE + c.LOW) s += ` ${c.FAKE + c.LOW} not converted (below quality minimum, ${c.FAKE} of them fakes).`;
   if (c.SECOND) s += ` ${c.SECOND} written to the second output.`;
@@ -162,7 +164,10 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     : scanFolder(inDir, { recurse: Boolean(settings.Recurse), skipDir: second ? [outDir, second.root] : outDir });
   if (!files.length) { message(settings.Recurse ? 'No music files found in that folder or its sub-folders.' : 'No music files found in that folder.'); return { ok: false }; }
 
-  const counts = { OK: 0, WARN: 0, FAKE: 0, LOW: 0, SKIP: 0, FAIL: 0, CLIPPED: 0, DUPLICATE: 0, HEALTH: 0, SECOND: 0 };
+  const counts = { OK: 0, WARN: 0, FAKE: 0, LOW: 0, SKIP: 0, FAIL: 0, CLIPPED: 0, DUPLICATE: 0, HEALTH: 0, PLAYER: 0, SECOND: 0 };
+  // Player check: one informational line up front when the chosen format is not listed. Never blocks the run.
+  const player = PLAYERS[settings.PlayerModel] ? settings.PlayerModel : '';
+  if (player) for (const m of playerPreflight(player, [settings.Format, ...(second ? [settings.SecondFormat] : [])])) message(m);
   const primary = makeLane(outDir, settings);
   if (!settings.FolderTemplate) {
     reserveMirrored(primary, files);
@@ -182,19 +187,20 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     if (res.clipped) counts.CLIPPED += 1;
     if (res.duplicate) counts.DUPLICATE += 1;
     if (res.health) counts.HEALTH += 1;
-    onEvent({ type: 'result', status: res.status, name: rel ? path.join(rel, res.name) : res.name, note: res.note, health: Boolean(res.health), duplicate: Boolean(res.duplicate), peak: typeof res.peakDb === 'number' ? res.peakDb : null });
+    if (res.player) counts.PLAYER += 1;
+    onEvent({ type: 'result', status: res.status, name: rel ? path.join(rel, res.name) : res.name, note: res.note, health: Boolean(res.health), player: Boolean(res.player),duplicate: Boolean(res.duplicate), peak: typeof res.peakDb === 'number' ? res.peakDb : null });
     // The second copy follows the primary one; a failed or stopped primary file is not repeated.
     if (second && ['OK', 'WARN', 'SKIP'].includes(res.status)) {
       const r2 = await convertInLane(second, files[i], { tools, signal, onStatus: (text) => onStatus(`Second copy - ${text}`) });
       if (r2.res.status === 'STOP') { stopped = true; break; }
       if (r2.res.status === 'OK' || r2.res.status === 'WARN') counts.SECOND += 1; // not added to the main totals
-      onEvent({ type: 'result', status: r2.res.status, name: r2.rel ? path.join(r2.rel, r2.res.name) : r2.res.name, note: `2nd output: ${r2.res.note || ''}`, second: true, health: false, duplicate: false, peak: null });
+      onEvent({ type: 'result', status: r2.res.status, name: r2.rel ? path.join(r2.rel, r2.res.name) : r2.res.name, note: `2nd output: ${r2.res.note || ''}`, second: true, health: false, player: false, duplicate: false, peak: null });
     }
     onEvent({ type: 'progress', index: i + 1, total: files.length, file: label });
   }
 
   if (stopped) message('Stopped.');
-  const summary = summarise(counts);
+  const summary = summarise(counts, player ? PLAYERS[player].label : '');
   message(summary, 'summary');
   onEvent({ type: 'done', summary, counts, stopped });
   return { ok: true, stopped, counts, summary };

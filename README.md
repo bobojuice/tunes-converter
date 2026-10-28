@@ -28,6 +28,8 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 - **Copy, don't re-encode:** a file already in the chosen format keeps its audio untouched; only names, tags and cover are fixed.
 - **Health check:** flags mono-as-stereo, low sample rate and damaged files (flag only, nothing is changed). Oversized cover art is shrunk; normal art and the audio are never touched.
 - **Report and watch folder (optional):** save a CSV report after each run, or convert new files automatically as they arrive. Presets can be exported and imported.
+- **Folders and a second copy (optional):** sort output into Artist/Album folders from the tags, or write a second copy in another format and folder in the same run (e.g. AIFF library plus MP3 share).
+- **Player check (optional):** pick your CDJ/XDJ model and files it may not play are flagged (flag only, from Pioneer's published specs).
 - **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title` instead of keeping only
   the last artist. Pick another pattern or write your own with `{artist}` `{title}` `{album}` `{albumartist}`
@@ -80,7 +82,7 @@ npm test           # unit + integration tests (needs ffmpeg and ffprobe on your 
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.5.0` collects them
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.6.0` collects them
 into a draft release. The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
 ## 📝 Status
