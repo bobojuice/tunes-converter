@@ -75,6 +75,7 @@
     <label class="check"><input type="checkbox" data-key="WatchFolder"> Watch the songs folder and convert new files automatically <span id="watchState" class="watch-state" hidden>WATCHING</span></label>
     <label class="check"><input type="checkbox" data-key="PlayPreview"> Play converted tracks from the results list (preview only, never changes files)</label>
     <label class="check"><input type="checkbox" data-key="PlatterSpin"> Spin the cover art like a record (instead of the CDJ-3000 look)</label>
+    <label class="check"><input type="checkbox" data-key="PlayNext"> Keep playing the next track in the list</label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 
@@ -132,7 +133,7 @@
       <div class="ro"><div class="ro-l">FORMAT</div><div id="roFormat" class="ro-v">MP3 320</div></div>
       <div class="ro-time"><div class="ro-l">TIME LEFT</div><div id="roTime" class="time">--:--</div></div>
       <button id="roQuality" class="ro ro-btn" type="button"><span class="ro-l">QUALITY</span><span id="roQualityV" class="ro-v">OFF</span></button>
-      <div class="ro"><div class="ro-l">FLAGS</div><div id="roFlags" class="ro-v">0</div></div>
+      <div class="ro"><div id="roFlagsL" class="ro-l">FLAGS</div><div id="roFlags" class="ro-v">0</div></div>
     </div>
   </section>
 
@@ -206,13 +207,14 @@
       </div>
       <div id="tempoFader" class="fader off">
         <button id="tempoVal" class="fd-val" type="button" tabindex="-1" title="Reset tempo to 0" aria-label="Reset tempo to 0">+0.0%</button>
-        <div id="tempo" class="fd-track" role="slider" tabindex="0" aria-label="Tempo" aria-orientation="vertical" aria-valuemin="-8" aria-valuemax="8" aria-valuenow="0" aria-valuetext="+0.0 percent" aria-disabled="true" title="Tempo (double-click to reset)">
+        <div id="tempo" class="fd-track" role="slider" tabindex="0" aria-label="Tempo" aria-orientation="vertical" aria-valuemin="-10" aria-valuemax="10" aria-valuenow="0" aria-valuetext="+0.0 percent" aria-disabled="true" title="Tempo (double-click to reset)">
           <span class="fd-lab fd-plus" aria-hidden="true">+</span>
           <span class="fd-lab fd-minus" aria-hidden="true">&minus;</span>
           <span class="fd-slot" aria-hidden="true"></span>
           <span id="fdTicks" class="fd-ticks" aria-hidden="true"></span>
           <span class="fd-thumb" aria-hidden="true"></span>
         </div>
+        <button id="tempoRange" class="fd-range" type="button" tabindex="-1" title="Tempo range (click to change)" aria-label="Tempo range plus or minus 10 percent. Click to change.">&plusmn;10</button>
       </div>
       </div>
       <div class="actions">

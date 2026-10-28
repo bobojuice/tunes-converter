@@ -19,7 +19,7 @@ const { createWatcher, watchAction, watchOutDirs } =require('./src/engine/watche
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
-const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
+const { rendererSettingsChanges, folderToOpen, openMode, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
 const { EXTENSIONS } = require('./src/engine/batch');
 const { fetchLatest } = require('./src/engine/update');
 
@@ -203,7 +203,8 @@ function registerIpc() {
     const src = playback.resolvePlayable(name, s.Out);
     if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
     const r = await getPlayer().prepare(t.ffmpeg, src, ticket);
-    return r.ok ? { ok: true, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, rms: r.rms, low: r.low, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
+    const bpm = r.ok ? await playback.readBpm(t.ffprobe, src) : 0; // an existing BPM tag only, never analysed
+    return r.ok ? { ok: true, bpm, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, rms: r.rms, low: r.low, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
   });
 
   ipcMain.handle('play:stop', (event) => {
@@ -372,9 +373,12 @@ function registerIpc() {
     if (!trusted(event)) return false;
     const dir = folderToOpen(which, current());
     if (!dir) return false;
-    // Reveal only: openPath would launch a macOS .app bundle (a directory) through LaunchServices.
-    shell.showItemInFolder(dir);
-    return true;
+    // Open the folder itself; a macOS .app bundle would be launched by openPath, so that one is only revealed.
+    if (openMode(dir, process.platform) === 'reveal') {
+      shell.showItemInFolder(dir);
+      return true;
+    }
+    return (await shell.openPath(dir)) === '';
   });
 
   ipcMain.handle('shell:openExternal', (event, url) => {

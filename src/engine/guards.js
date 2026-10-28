@@ -27,6 +27,11 @@ function folderToOpen(which, s) {
   return resolveDirectory(which === 'in' ? s.In : s.Out);
 }
 
+// 'open' the folder itself, or 'reveal' it in its parent: a macOS .app is a directory that openPath would launch.
+function openMode(dir, platform) {
+  return platform === 'darwin' && /\.app[\\/]*$/i.test(String(dir)) ? 'reveal' : 'open';
+}
+
 // What was dropped on the window: a folder (becomes the songs folder), music files, or nothing usable.
 // `extensions` is a Set of lower-case extensions such as '.flac'.
 function classifyDrop(paths, extensions) {
@@ -74,4 +79,4 @@ async function withTerminalEvent(emit, work) {
   }
 }
 
-module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot, withTerminalEvent };
+module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, openMode, createSlot, withTerminalEvent };

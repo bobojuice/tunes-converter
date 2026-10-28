@@ -59,14 +59,15 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   height: 36px; padding: 0 16px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--soft);
   font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; transition: background 0.12s, border-color 0.12s;
 }
-.btn { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 55%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.45); }
+/* raised rubber buttons (CDJ style): light top edge, soft shadow below and around, lighter at the top; :active flips to pressed-in */
+.btn { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.14)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 3px rgba(0, 0, 0, 0.6), 0 0 5px rgba(0, 0, 0, 0.35); }
 .btn:hover:not(:disabled) { background-color: #1c1f25; border-color: #3a3f47; }
-.btn:active:not(:disabled) { background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0)); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.55); }
-.btn:disabled { color: #626872; background: #101215; }
+.btn:active:not(:disabled) { transform: translateY(1px); background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.04)); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.65), 0 0 2px rgba(0, 0, 0, 0.3); }
+.btn:disabled { color: #626872; background-color: #101215; background-image: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
 .btn.gear { height: 34px; }
-.btn.mini { height: 26px; padding: 0 10px; font-size: 10.5px; border-color: var(--lcd-edge); background: transparent; color: var(--lcd-ink); background-image: none; box-shadow: inset 0 1px 0 rgba(127, 227, 242, 0.08); }
+.btn.mini { height: 26px; padding: 0 10px; font-size: 10.5px; border-color: var(--lcd-edge); background-color: transparent; color: var(--lcd-ink); background-image: linear-gradient(180deg, rgba(127, 227, 242, 0.12), rgba(127, 227, 242, 0.02) 60%, rgba(0, 0, 0, 0.12)); box-shadow: inset 0 1px 0 rgba(127, 227, 242, 0.22), 0 2px 3px rgba(0, 0, 0, 0.55); }
 .btn.mini:hover:not(:disabled) { background-color: #0b2830; border-color: #2b5b69; }
-.btn.mini:disabled { background: transparent; color: #4b7c88; }
+.btn.mini:disabled { background-color: transparent; background-image: none; color: #4b7c88; box-shadow: none; }
 .btn.small { height: 34px; padding: 0 14px; }
 .btn.primary { background: var(--blue); border-color: var(--blue); color: #04121c; }
 .btn.primary:hover:not(:disabled) { background-color: #5ab9ff; }
@@ -87,9 +88,10 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .title-row .screen-title { flex: 1; min-width: 0; }
 .transport { flex: none; display: flex; align-items: center; gap: 8px; height: 24px; }
-.play-stop { width: 24px; height: 22px; padding: 0; border: 1px solid var(--lcd-edge); border-radius: 3px; background: linear-gradient(180deg, rgba(127, 227, 242, 0.07), rgba(127, 227, 242, 0)); color: var(--orange); font-size: 11px; line-height: 1; box-shadow: inset 0 1px 0 rgba(127, 227, 242, 0.1), 0 1px 1px rgba(0, 0, 0, 0.5); }
+.play-stop { width: 24px; height: 22px; padding: 0; border: 1px solid var(--lcd-edge); border-radius: 3px; background: linear-gradient(180deg, rgba(127, 227, 242, 0.16), rgba(127, 227, 242, 0.02) 60%, rgba(0, 0, 0, 0.12)); color: var(--orange); font-size: 11px; line-height: 1; box-shadow: inset 0 1px 0 rgba(127, 227, 242, 0.25), 0 2px 3px rgba(0, 0, 0, 0.6); }
 .play-stop:hover:not(:disabled) { background-color: #0b2830; border-color: #2b5b69; }
-.play-stop:active:not(:disabled) { background: rgba(0, 0, 0, 0.3); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); }
+.play-stop:active:not(:disabled) { transform: translateY(1px); background: rgba(0, 0, 0, 0.3); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.65); }
+.play-stop:disabled { box-shadow: none; background: transparent; }
 .play-stop:disabled { color: #4b7c88; }
 .play-time { font: 11.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
 .tp-ctl { display: flex; align-items: center; gap: 5px; }
@@ -147,15 +149,16 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .sec i { flex: 1; height: 1px; background: #25282e; }
 .pads { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .pad {
-  height: 54px; border-radius: 6px; border: 1px solid var(--edge); background: linear-gradient(180deg, #1b1e24, #111317); color: #9aa0a9;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -2px 3px rgba(0, 0, 0, 0.4), 0 2px 3px rgba(0, 0, 0, 0.5);
+  height: 54px; border-radius: 6px; border: 1px solid #2f343c; background: linear-gradient(180deg, #2a2e36, #16181d); color: #9aa0a9;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 3px 4px rgba(0, 0, 0, 0.6), 0 0 6px rgba(0, 0, 0, 0.35);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   font-size: 13px; font-weight: 600; letter-spacing: 0.04em; padding: 0;
 }
 .pad .led { width: 22px; height: 3px; border-radius: 2px; background: var(--edge); }
 .pad:hover:not(:disabled) { border-color: #3a3f47; }
-.pad:active:not(:disabled), .opt:active:not(:disabled) { background: linear-gradient(180deg, #0e1013, #15181c); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7); }
-.pad[aria-pressed="true"] { border-color: var(--blue); color: #fff; background: linear-gradient(180deg, #14171c, #1a1d23); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04); }
+.pad:active:not(:disabled), .opt:active:not(:disabled) { transform: translateY(1px); background: linear-gradient(180deg, #0e1013, #15181c); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.3); }
+.pad[aria-pressed="true"] { border-color: var(--blue); color: #fff; background: linear-gradient(180deg, #2c3139, #181b20); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 3px 4px rgba(0, 0, 0, 0.6), 0 0 6px rgba(46, 167, 255, 0.12); }
+.pad[aria-pressed="true"]:active:not(:disabled), .opt[aria-pressed="true"]:active:not(:disabled) { box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.75); }
 .pad[aria-pressed="true"] .led { background: var(--blue); box-shadow: 0 0 10px var(--blue); }
 .pad:disabled:not([aria-pressed="true"]) { opacity: 0.55; }
 
@@ -163,22 +166,27 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .knob-wrap { position: relative; width: 72px; height: 72px; flex: none; }
 .knob { position: absolute; inset: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink); }
 .knob-ticks { position: absolute; inset: 0; }
-.knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #3a3f47; }
-.knob-ticks b.on { background: var(--blue); }
+.knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #4a505a; }
+.knob-ticks b.on { background: #fff; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
+/* DJM-style EQ knob: black body with a knurled (ribbed) side, a slightly raised smooth top cap, a white indicator line */
 .knob .cap {
-  position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%; border: 1px solid #3a3f47;
-  background: radial-gradient(circle at 32% 26%, #3b414b 0, #262a31 34%, #17191e 78%, #121418 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.07),
-    inset -3px -4px 7px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 3px rgba(0, 0, 0, 0.22),
-    0 1px 0 rgba(255, 255, 255, 0.05),
-    0 4px 8px rgba(0, 0, 0, 0.65);
+  position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%;
+  background: repeating-conic-gradient(#050506 0 3deg, #2a2d33 3deg 6deg);
+  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4);
 }
-.knob .cap::before { content: ""; position: absolute; left: 7px; top: 3px; width: 30px; height: 17px; border-radius: 50%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0)); pointer-events: none; }
-.knob:hover:not(:disabled) .cap { border-color: #5a616c; }
-.knob .ptr { position: absolute; left: 35px; top: 14px; width: 2px; height: 20px; background: var(--blue); transform-origin: 1px 22px; transform: rotate(var(--ang, -45deg)); }
+/* soft shading over the ribs so the side reads round */
+.knob .cap::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 0 62%, rgba(0, 0, 0, 0.5) 100%), linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.3));
+}
+/* the smooth top cap, a little raised, with a soft specular highlight */
+.knob .cap::after {
+  content: ""; position: absolute; inset: 5px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse 60% 45% at 36% 24%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 50%, #1c1e23 0, #131518 70%, #0a0b0d 100%);
+  box-shadow: 0 0 0 1px #000, 0 2px 3px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.knob:hover:not(:disabled) .cap { box-shadow: 0 0 0 1px #3a3f47, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4); }
+.knob .ptr { position: absolute; left: 35px; top: 11px; width: 2px; height: 8px; border-radius: 1px; background: #fff; box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); transform-origin: 1px 25px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 32px; width: 52px; text-align: center; font: 500 11px var(--mono); color: var(--ink); }
 .knob:disabled { opacity: 0.6; }
 .klo, .khi { position: absolute; bottom: -9px; font: 10px/1 var(--mono); color: var(--muted); }
@@ -194,14 +202,14 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 
 .opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .opt {
-  height: 40px; border-radius: 4px; border: 1px solid var(--edge); background: linear-gradient(180deg, #181b20, #101215); color: var(--muted);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -2px 3px rgba(0, 0, 0, 0.35), 0 2px 3px rgba(0, 0, 0, 0.5);
+  height: 40px; border-radius: 4px; border: 1px solid #2f343c; background: linear-gradient(180deg, #272b33, #14161a); color: var(--muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 3px 4px rgba(0, 0, 0, 0.6), 0 0 6px rgba(0, 0, 0, 0.35);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
 }
 .opt .led { width: 24px; height: 2px; background: #3a3f47; }
 .opt:hover:not(:disabled) { border-color: #3a3f47; }
-.opt[aria-pressed="true"] { color: var(--ink); background: linear-gradient(180deg, #13161a, #181b20); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04); }
+.opt[aria-pressed="true"] { color: var(--ink); background: linear-gradient(180deg, #2c3139, #181b20); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 3px 4px rgba(0, 0, 0, 0.6), 0 0 6px rgba(255, 138, 31, 0.1); }
 .opt[aria-pressed="true"] .led { background: var(--orange); box-shadow: 0 0 6px rgba(255, 138, 31, 0.6); }
 .opt:disabled { opacity: 0.6; }
 
@@ -242,14 +250,21 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .fill { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 .actions { display: flex; align-items: center; gap: 14px; }
-.ringbtn { width: 56px; height: 56px; border-radius: 50%; border: 4px solid; background: radial-gradient(circle at 34% 28%, #2a2e35 0, #1b1e23 45%, #121417 100%); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 0; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.14), inset -2px -3px 6px rgba(0, 0, 0, 0.5), 0 3px 5px rgba(0, 0, 0, 0.6); }
-.ringbtn.go { border-color: var(--green); color: #b8f5d2; }
-.ringbtn.go:hover:not(:disabled) { background: radial-gradient(circle at 34% 28%, #35503f 0, #1f2e26 50%, #151d18 100%); }
-.ringbtn:active:not(:disabled) { box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.75), 0 1px 1px rgba(0, 0, 0, 0.5); }
-.ringbtn.go:disabled { border-color: #1f5a38; color: #7d9488; }
-.ringbtn.halt { border-color: var(--orange); color: var(--orange); }
-.ringbtn.halt:hover:not(:disabled) { background: radial-gradient(circle at 34% 28%, #4d3a26 0, #2c2218 50%, #1a1510 100%); }
-.ringbtn.halt:disabled { border-color: #3a3f47; color: #7c828c; }
+/* coloured ring around a brushed silver cap (like the CDJ CUE / PLAY buttons) */
+.ringbtn {
+  width: 56px; height: 56px; border-radius: 50%; border: 4px solid; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 0; color: #1a1d22;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.3) 0, rgba(255, 255, 255, 0) 62%),
+    conic-gradient(from 10deg, #aeb4bc, #eef1f4 10%, #a5abb3 22%, #e3e7eb 35%, #979ea6 48%, #eceff2 61%, #a9afb7 74%, #e6e9ed 87%, #aeb4bc);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.85), inset 0 -2px 3px rgba(0, 0, 0, 0.3), 0 3px 5px rgba(0, 0, 0, 0.65), 0 0 7px rgba(0, 0, 0, 0.35);
+}
+.ringbtn.go { border-color: var(--green); }
+.ringbtn:hover:not(:disabled) { filter: brightness(1.07); }
+.ringbtn:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.9); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.55), 0 0 2px rgba(0, 0, 0, 0.4); }
+.ringbtn.go:disabled { border-color: #1f5a38; filter: brightness(0.42) saturate(0.6); }
+.ringbtn.halt { border-color: var(--orange); }
+.ringbtn.halt:disabled { border-color: #3a3f47; filter: brightness(0.42) saturate(0.6); box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5); }
 .btn.wide { height: 34px; padding: 0 12px; white-space: nowrap; }
 
 /* track list */
@@ -357,26 +372,34 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .cdj-rim, .cdj-head, .cdj-cue, .cdj-vinyl, .cdj-pockets { display: none; }
 .platter.cdj { background: conic-gradient(rgba(255, 140, 40, 0.38) 0 var(--ph, 0deg), #1b1e24 var(--ph, 0deg) 360deg); }
 .platter.cdj .marker { display: none; }
-/* jog geometry: cover art about 76% of the platter, a black vinyl ring around it with a chrome lip, finger pockets, thin LED dashes */
+/* jog geometry: cover art (124 px) on a big black vinyl that reaches out to a narrow dark-grey finger-pocket band (r 90.25..105 of the
+   105 px vinyl radius = 86%..100%), a thin silver sliver ring at the vinyl/band boundary, 24 nubs 13x8 px centred in the band (renderer.js turns them) */
 .platter.cdj .cdj-vinyl {
   display: block; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
   background:
     conic-gradient(from 35deg, rgba(255, 255, 255, 0) 0 8%, rgba(255, 255, 255, 0.05) 14%, rgba(255, 255, 255, 0) 22% 55%, rgba(255, 255, 255, 0.04) 62%, rgba(255, 255, 255, 0) 70% 100%),
-    /* dark grey nub section outside, blacker vinyl inside, a faint defined edge between them at 76% of the radius */
-    radial-gradient(circle closest-side, #08090b 0 75.2%, rgba(255, 255, 255, 0.11) 75.6%, #030304 76.3%, #1d2025 77.2% 95%, #15171b 97.5%, #20232a 100%);
+    /* blacker vinyl inside, dark grey nub band outside (from 86%) */
+    radial-gradient(circle closest-side, #08090b 0 85%, #030304 86%, #1d2025 86.4% 95%, #15171b 97.5%, #20232a 100%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 6px rgba(0, 0, 0, 0.6);
 }
-/* the fine vinyl texture lives only on the black vinyl, not on the nub section */
+/* the fine vinyl texture covers the whole black vinyl up to the band */
 .platter.cdj .cdj-vinyl::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
   background: repeating-radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0 1px, rgba(255, 255, 255, 0.04) 1px 2px);
-  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 74.5%, transparent 75.2%);
-  mask-image: radial-gradient(circle closest-side, #000 0 74.5%, transparent 75.2%);
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 84.5%, transparent 85.2%);
+  mask-image: radial-gradient(circle closest-side, #000 0 84.5%, transparent 85.2%);
 }
-.platter.cdj .deck-face, .platter.cdj .art { inset: 50px; border: 0; box-shadow: 0 0 0 1px #d4dae1, 0 0 0 2.5px #040405, 0 0 7px 3px rgba(0, 0, 0, 0.55); }
+/* thin silver sliver ring exactly on the vinyl/band boundary (r 88.75..90.25 of 105 -> inset 14.75 px) */
+.platter.cdj .cdj-vinyl::before {
+  content: ''; position: absolute; inset: 14.75px; border-radius: 50%; z-index: 1;
+  background: conic-gradient(from 30deg, #7e858e, #e9edf2 18%, #9aa1aa 40%, #dfe4ea 62%, #7a818a 82%, #7e858e);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+}
+.platter.cdj .deck-face, .platter.cdj .art { inset: 50px; border: 0; box-shadow: 0 0 6px 2px rgba(0, 0, 0, 0.5); }
 .platter.cdj .cdj-pockets { display: block; position: absolute; inset: 0; pointer-events: none; }
 .platter.cdj .cdj-pockets i {
-  position: absolute; left: 50%; top: 12px; width: 14px; height: 9px; margin-left: -7px; border-radius: 50%; transform-origin: 7px 100px;
+  position: absolute; left: 50%; top: 11px; width: 13px; height: 8px; margin-left: -6.5px; border-radius: 50%; transform-origin: 6.5px 101px;
   background: radial-gradient(ellipse at 50% 60%, #181b20 0, #1a1d22 60%, #1d2025 100%);
   box-shadow: inset 1px 2px 2px rgba(0, 0, 0, 0.5), inset -1px -1px 1px rgba(255, 255, 255, 0.06), 0 1px 0 0 rgba(255, 255, 255, 0.07);
 }
@@ -385,16 +408,10 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   display: block; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
   box-shadow: inset 0 0 0 1px rgba(214, 220, 229, 0.6), inset 0 0 0 2.5px #08090b, inset 0 3px 3px 2px rgba(255, 255, 255, 0.07);
 }
-/* thin chrome label ring touching the art; a short bright line orbits on it (one turn per --rev, paused with the audio) */
+/* a short bright line orbits on the vinyl just outside the art (radius 68, one turn per --rev, paused with the audio) */
 .cdj-orbit { display: none; }
 .platter.cdj .cdj-orbit {
-  display: block; position: absolute; inset: 46px; border-radius: 50%; pointer-events: none;
-}
-.platter.cdj .cdj-orbit::before {
-  content: ""; position: absolute; inset: 0; border-radius: 50%;
-  background: conic-gradient(from 30deg, #8d949d, #e9edf2 18%, #9aa1aa 40%, #dfe4ea 62%, #868d96 82%, #8d949d);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  display: block; position: absolute; inset: 44px; border-radius: 50%; pointer-events: none;
 }
 .platter.cdj .cdj-orbit i { position: absolute; inset: 0; display: block; animation: platter-spin var(--rev, 1.8s) linear infinite; }
 .platter.cdj .cdj-orbit i::after {
@@ -424,6 +441,8 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .fader.off { opacity: 0; visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .fader { transition: none; } }
 .fd-val { flex: none; width: 36px; height: 16px; margin: 0 -4px; padding: 0; border: 0; background: transparent; color: var(--lcd-ink); font: 500 9.5px/16px var(--mono); text-align: center; letter-spacing: -0.02em; }
+.fd-range { flex: none; width: 34px; height: 14px; margin: 0 -3px; padding: 0; border: 1px solid var(--edge); border-radius: 7px; background: #15171b; color: var(--lcd-ink); font: 500 9px/12px var(--mono); text-align: center; cursor: pointer; }
+.fader.off .fd-range { cursor: default; }
 .fader.zero .fd-val { color: var(--muted); }
 .fader.off .fd-val { cursor: default; }
 .fd-track { position: relative; flex: 1; width: 100%; min-height: 0; border-radius: 4px; cursor: ns-resize; touch-action: none; user-select: none; --t: 0; background: linear-gradient(180deg, #0d0e11, #15171b); border: 1px solid var(--edge); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.05); }
@@ -431,12 +450,16 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .fd-lab { position: absolute; left: 0; right: 0; text-align: center; font: 600 11px/10px var(--cond); color: var(--muted); }
 .fd-plus { top: 1px; } .fd-minus { bottom: 1px; }
 .fd-slot { position: absolute; left: 50%; top: 14px; bottom: 14px; width: 4px; margin-left: -2px; border-radius: 2px; background: #020203; box-shadow: inset 0 1px 2px #000, 0 0 0 1px rgba(255, 255, 255, 0.06); }
-.fd-ticks b { position: absolute; left: 50%; width: 22px; margin-left: -11px; height: 1px; top: calc(25px + (8 - var(--v)) / 16 * (100% - 50px)); background: linear-gradient(90deg, #5a616c 0 4px, transparent 4px 18px, #5a616c 18px 22px); }
-.fd-ticks b.mid { height: 2px; margin-top: -0.5px; background: linear-gradient(90deg, #e6e9ee 0 6px, transparent 6px 16px, #e6e9ee 16px 22px); }
+.fd-ticks b { position: absolute; left: 50%; width: 22px; margin-left: -11px; height: 1px; top: calc(25px + (var(--R, 10) - var(--v)) / (2 * var(--R, 10)) * (100% - 50px)); background: linear-gradient(90deg, #5a616c 0 4px, transparent 4px 18px, #5a616c 18px 22px); }
+.fd-ticks b.mid { height: 2px; margin-top: -0.5px; background: linear-gradient(90deg, #8b9097 0 6px, transparent 6px 16px, #8b9097 16px 22px); }
 .fd-thumb {
-  position: absolute; left: 50%; width: 22px; height: 30px; margin-left: -11px; top: calc(10px + (8 - var(--t)) / 16 * (100% - 50px)); border-radius: 3px; border: 1px solid #0a0b0d;
+  position: absolute; left: 50%; width: 22px; height: 30px; margin-left: -11px; top: calc(10px + (var(--R, 10) - var(--t)) / (2 * var(--R, 10)) * (100% - 50px)); border-radius: 3px; border: 1px solid #0a0b0d;
   background: linear-gradient(90deg, #07080a 0, #2b2f36 24%, #3a3f48 42%, #1a1c21 66%, #050506 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 0 -2px 3px rgba(0, 0, 0, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.08), 0 2px 4px rgba(0, 0, 0, 0.75);
 }
-.fd-thumb::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 2px; margin-top: -1px; background: #e6e9ee; box-shadow: 0 0 3px rgba(255, 255, 255, 0.35); }
+.fd-thumb::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 2px; margin-top: -1px; background: #8b9097; box-shadow: 0 0 2px rgba(255, 255, 255, 0.15); }
 .fd-track:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* jog wheel: grab the platter (CDJ look) and turn it; the bright line follows the pointer while held */
+.platter.cdj { cursor: grab; touch-action: none; user-select: none; }
+.platter.cdj.scrub { cursor: grabbing; }
+.platter.cdj.scrub .cdj-orbit i { animation: none; transform: rotate(var(--oa, 0deg)); }

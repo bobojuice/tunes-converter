@@ -104,8 +104,8 @@
       for (let i = 0; i < 9; i++) {
         const t = document.createElement('b');
         const a = ((-135 + i * 33.75) * Math.PI) / 180;
-        t.style.left = `${Math.round(40 + 38 * Math.sin(a) - 2)}px`;
-        t.style.top = `${Math.round(40 - 38 * Math.cos(a) - 2)}px`;
+        t.style.left = `${Math.round(36 + 33 * Math.sin(a) - 2)}px`;
+        t.style.top = `${Math.round(36 - 33 * Math.cos(a) - 2)}px`;
         ticks.appendChild(t);
       }
     }
@@ -131,8 +131,7 @@
     } else {
       $('roTime').textContent = phase === 'done' ? '00:00' : '--:--';
     }
-    $('roFlags').textContent = String(flags.length);
-    $('roFlags').classList.toggle('hot', flags.length > 0);
+    renderFlagsOrBpm();
     // platter
     const pct = total ? Math.round((progIndex / total) * 100) : 0;
     const p = phase === 'idle' ? 0 : pct;
@@ -162,6 +161,18 @@
       $('count').textContent = '';
     }
     if (playState === 'playing') hubPlay(); // elapsed time sits in the hub while a track plays
+  }
+
+  // the FLAGS readout becomes BPM (tag value x tempo) while a track is loaded
+  function renderFlagsOrBpm() {
+    const loaded = playState === 'playing';
+    const label = loaded ? 'BPM' : 'FLAGS';
+    if ($('roFlagsL').textContent !== label) $('roFlagsL').textContent = label;
+    let txt;
+    if (loaded) txt = trackBpm > 0 ? (trackBpm * (1 + tempo / 100)).toFixed(1) : '---';
+    else txt = String(flags.length);
+    if ($('roFlags').textContent !== txt) $('roFlags').textContent = txt;
+    $('roFlags').classList.toggle('hot', !loaded && flags.length > 0);
   }
 
   // ---- peak meter: 20 segments (13 green, 4 amber, 3 red), -30 dB .. 0 dB ----
@@ -463,6 +474,20 @@
   let meterLvl = -60;
   let meterLit = -1;
   let meterTxt = '';
+  let meterHist = []; // [time, dB] of the last ~100 ms
+  let meterAt = 0;
+  let meterHold = -60;
+  let meterHoldAt = 0;
+  let meterTxtAt = 0;
+  let trackBpm = 0;
+  let jog = null; // { id, wasPlaying, last, t, deg } while the platter is held
+  let tempoRange = 10;
+  const RANGES = [6, 10, 16];
+  const RANGE_KEY = 'tc.range';
+  try {
+    const sr = Number(localStorage.getItem(RANGE_KEY));
+    if (RANGES.includes(sr)) tempoRange = sr;
+  } catch (err) { /* storage unavailable: keep the default */ }
   let ovDrag = false;
   let volume = 100;
   try {
@@ -566,8 +591,28 @@
     audio.playbackRate = r;
     try { audio.preservesPitch = false; audio.webkitPreservesPitch = false; } catch (err) { /* vinyl-style pitch is optional */ }
   }
+  function setRange(r, persist) {
+    tempoRange = r;
+    const f = $('tempoFader');
+    f.style.setProperty('--R', String(r));
+    $('tempo').setAttribute('aria-valuemin', String(-r));
+    $('tempo').setAttribute('aria-valuemax', String(r));
+    $('tempoRange').textContent = `±${r}`;
+    $('tempoRange').setAttribute('aria-label', `Tempo range plus or minus ${r} percent. Click to change.`);
+    const ticks = $('fdTicks');
+    ticks.textContent = '';
+    const step = r === 16 ? 4 : 2;
+    for (let v = r; v >= -r; v -= step) {
+      const b = document.createElement('b');
+      b.style.setProperty('--v', String(v));
+      if (v === 0) b.className = 'mid';
+      ticks.appendChild(b);
+    }
+    if (persist) { try { localStorage.setItem(RANGE_KEY, String(r)); } catch (err) { /* not saved */ } }
+    setTempo(tempo); // keeps the value if it fits, else clamps to the new end
+  }
   function setTempo(t) {
-    tempo = clamp(Math.round(t * 10) / 10, -8, 8);
+    tempo = clamp(Math.round(t * 10) / 10, -tempoRange, tempoRange);
     const txt = `${tempo < 0 ? '-' : '+'}${Math.abs(tempo).toFixed(1)}%`;
     const f = $('tempo');
     f.style.setProperty('--t', String(tempo));
@@ -578,6 +623,7 @@
     $('tempoFader').classList.toggle('zero', tempo === 0);
     applyRate();
     renderSpin();
+    renderFlagsOrBpm();
   }
   function syncTempoEnabled() {
     const on = playState === 'playing';
@@ -585,9 +631,10 @@
     $('tempo').setAttribute('aria-disabled', on ? 'false' : 'true');
     $('tempo').tabIndex = on ? 0 : -1;
     $('tempoVal').disabled = !on;
+    $('tempoRange').disabled = !on;
   }
   function togglePause() {
-    if (playState !== 'playing' || !audio) return;
+    if (playState !== 'playing' || !audio || jog) return;
     if (audio.paused) audio.play().catch(() => {});
     else audio.pause();
   }
@@ -648,31 +695,58 @@
     meterLvl = -60;
     meterLit = -1;
     meterTxt = '';
+    meterHist = [];
+    meterAt = 0;
+    meterHold = -60;
+    meterHoldAt = 0;
+    meterTxtAt = 0;
     $('peakLabel').textContent = 'LEVEL';
     $('meter').setAttribute('aria-label', 'Live playback level');
   }
+  // VU-style ballistics: the level is the loudest sample of the last ~100 ms (near-instant attack), it falls about 17 dB per second,
+  // a hold mark stays ~1 s on the highest point and then falls the same way; the dB text refreshes at most 10 times a second.
+  const METER_FALL = 17; // dB per second
   function liveMeter() {
+    const now = performance.now();
     analyser.getByteTimeDomainData(timeData);
     let pk = 0;
     for (let i = 0; i < timeData.length; i++) { const d = Math.abs(timeData[i] - 128); if (d > pk) pk = d; }
     const db = pk > 0 ? 20 * Math.log10(pk / 128) : -60;
-    meterLvl = Math.max(db, meterLvl - 0.7); // falls smoothly
+    meterHist.push([now, db]);
+    while (meterHist.length && now - meterHist[0][0] > 100) meterHist.shift();
+    let recent = -60;
+    for (const h of meterHist) if (h[1] > recent) recent = h[1];
+    const dt = meterAt ? Math.min(0.25, (now - meterAt) / 1000) : 0;
+    meterAt = now;
+    meterLvl = Math.max(recent, meterLvl - METER_FALL * dt, -60);
+    if (meterLvl >= meterHold) { meterHold = meterLvl; meterHoldAt = now; }
+    else if (now - meterHoldAt > 1000) meterHold = Math.max(meterLvl, meterHold - METER_FALL * dt);
     const lit = Math.round(clamp((meterLvl + 30) / 30, 0, 1) * 20);
-    if (lit !== meterLit) {
-      meterLit = lit;
-      Array.from($('meter').children).forEach((seg, i) => seg.classList.toggle('on', i < lit));
+    const hold = Math.round(clamp((meterHold + 30) / 30, 0, 1) * 20);
+    const key = lit * 100 + hold;
+    if (key !== meterLit) {
+      meterLit = key;
+      Array.from($('meter').children).forEach((seg, i) => seg.classList.toggle('on', i < lit || (hold > 0 && i === hold - 1)));
     }
-    const txt = meterLvl <= -59 ? '--' : `${meterLvl > 0 ? '+' : ''}${meterLvl.toFixed(0)} dB`;
-    if (txt !== meterTxt) { meterTxt = txt; $('peakVal').textContent = txt; }
+    if (now - meterTxtAt >= 100) {
+      meterTxtAt = now;
+      const txt = meterLvl <= -59 ? '--' : `${meterLvl > 0 ? '+' : ''}${meterLvl.toFixed(0)} dB`;
+      if (txt !== meterTxt) { meterTxt = txt; $('peakVal').textContent = txt; }
+    }
   }
-
   function ensureAudio() {
     if (!audio) {
       audio = new Audio();
       audio.crossOrigin = 'anonymous';
       audio.preload = 'auto';
       audio.volume = volume / 100;
-      audio.addEventListener('ended', () => { if (playState !== 'idle') stopPlayback(); });
+      audio.addEventListener('ended', () => {
+        if (playState === 'idle') return;
+        const done = playRow;
+        stopPlayback();
+        const next = settings().PlayNext && settings().PlayPreview ? nextPlayable(done) : null;
+        if (next) { next.scrollIntoView({ block: 'nearest' }); startPlayback(next); }
+      });
       audio.addEventListener('play', () => { if (playState === 'playing') syncPause(); });
       audio.addEventListener('pause', () => { if (playState === 'playing') syncPause(); });
       audio.addEventListener('error', () => {
@@ -710,6 +784,14 @@
     if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
   }
 
+  // the next row below `row` that can be played (rows with data-play, in list order)
+  function nextPlayable(row) {
+    if (!row || !$('log').contains(row)) return null;
+    const rows = Array.from($('log').querySelectorAll('.row-log[data-play]'));
+    const i = rows.indexOf(row);
+    return i >= 0 && i + 1 < rows.length ? rows[i + 1] : null;
+  }
+
   function playFailed(text) {
     stopPlayback();
     $('status').textContent = text;
@@ -735,6 +817,10 @@
     miniCache = null;
     lastMiniCol = -1;
     ovDrag = false;
+    jog = null;
+    $('track').classList.remove('scrub');
+    $('track').style.removeProperty('--oa');
+    trackBpm = 0;
     $('ovTip').hidden = true;
     setArt('');
     renderSpin();
@@ -775,6 +861,7 @@
     if (req !== playReq) return;
     wf = buildWf(r);
     trackLen = r.duration > 0 ? r.duration : 0;
+    trackBpm = Number(r.bpm) > 0 ? Number(r.bpm) : 0;
     miniCache = null;
     lastMiniCol = -1;
     ctLast = -1;
@@ -1295,13 +1382,6 @@
       pockets.appendChild(p);
     }
     // tempo fader: drag, arrow keys (Shift / PageUp / PageDown = 1 %), Home resets, double-click or the readout resets
-    const fdTicks = $('fdTicks');
-    for (let v = 8; v >= -8; v -= 2) {
-      const b = document.createElement('b');
-      b.style.setProperty('--v', String(v));
-      if (v === 0) b.className = 'mid';
-      fdTicks.appendChild(b);
-    }
     const fader = $('tempo');
     const fdOn = () => playState === 'playing';
     let fdDrag = false;
@@ -1309,7 +1389,7 @@
       const r = fader.getBoundingClientRect();
       const span = Math.max(1, r.height - 50); // thumb centre travels from 25 px to height - 25 px
       const f = clamp((e.clientY - r.top - 25) / span, 0, 1);
-      let t = 8 - f * 16;
+      let t = tempoRange - f * 2 * tempoRange;
       if (Math.abs(t) < 0.25) t = 0; // centre detent
       setTempo(t);
     };
@@ -1335,15 +1415,55 @@
       else if (e.key === 'PageUp') t = tempo + 1;
       else if (e.key === 'PageDown') t = tempo - 1;
       else if (e.key === 'Home') t = 0;
-      else if (e.key === 'End') t = -8;
+      else if (e.key === 'End') t = -tempoRange;
       if (t === null) return;
       e.preventDefault();
       e.stopPropagation(); // the fader keeps its own arrow keys (not volume / seek)
       if (fdOn()) setTempo(t);
     });
     $('tempoVal').addEventListener('click', () => { if (fdOn()) setTempo(0); });
-    setTempo(0);
+    $('tempoRange').addEventListener('click', () => {
+      if (!fdOn()) return;
+      setRange(RANGES[(RANGES.indexOf(tempoRange) + 1) % RANGES.length], true);
+    });
+    setRange(tempoRange, false);
     syncTempoEnabled();
+    // jog wheel: hold and turn the platter (CDJ look only). 1.8 s of track per turn; the track pauses while it is held.
+    const plat = $('track');
+    const angleOf = (e) => { const r = plat.getBoundingClientRect(); return Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))); };
+    plat.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || jog || playState !== 'playing' || !audio || !plat.classList.contains('cdj') || !(dur() > 0)) return;
+      jog = { id: e.pointerId, wasPlaying: !audio.paused, last: angleOf(e), t: audio.currentTime };
+      try { plat.setPointerCapture(e.pointerId); } catch (err) { /* dragging still works over the platter */ }
+      audio.pause();
+      plat.classList.add('scrub');
+      plat.style.setProperty('--oa', `${(jog.last * 180 / Math.PI).toFixed(1)}deg`);
+      e.preventDefault();
+    });
+    plat.addEventListener('pointermove', (e) => {
+      if (!jog || e.pointerId !== jog.id) return;
+      const a = angleOf(e);
+      let d = a - jog.last;
+      if (d > Math.PI) d -= 2 * Math.PI;
+      else if (d < -Math.PI) d += 2 * Math.PI;
+      jog.last = a;
+      jog.t = clamp(jog.t + (d / (2 * Math.PI)) * 1.8, 0, dur());
+      seekTo(jog.t);
+      plat.style.setProperty('--oa', `${(a * 180 / Math.PI).toFixed(1)}deg`);
+    });
+    const jogEnd = (e) => {
+      if (!jog || e.pointerId !== jog.id) return;
+      const was = jog.wasPlaying;
+      jog = null;
+      try { plat.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+      plat.classList.remove('scrub');
+      plat.style.removeProperty('--oa');
+      if (was && playState === 'playing' && audio && audio.paused) audio.play().catch(() => {});
+      syncPause();
+    };
+    plat.addEventListener('pointerup', jogEnd);
+    plat.addEventListener('pointercancel', jogEnd);
+    plat.addEventListener('lostpointercapture', jogEnd);
     // skim strip: click or drag to seek
     const ovFrac = (e) => { const r = $('mini').getBoundingClientRect(); return clamp((e.clientX - r.left) / (r.width || 1), 0, 1); };
     const ovShow = (e) => {
