@@ -57,7 +57,9 @@ function keepDates(src, dest) {
 }
 
 // Converts one file. Returns { status: 'OK'|'WARN'|'LOW'|'FAKE'|'SKIP'|'FAIL'|'STOP', name, note }.
-async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus, seen }) {
+// `folderFor(fields)` (optional) picks the output folder from the tags once they are read: it returns
+// { outDir, allocator } and replaces the `outDir` / `allocator` given here.
+async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus, seen, folderFor }) {
   const baseName = path.basename(file);
   if (signal.aborted) return { status: 'STOP' };
 
@@ -78,8 +80,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     artist, title, albumartist: albumArtist,
     album: pickTag(tagSets, 'album'),
     track: trackNumber(pickTag(tagSets, 'track')),
-    year: yearOf(pickTag(tagSets, 'date') || pickTag(tagSets, 'year'))
+    year: yearOf(pickTag(tagSets, 'date') || pickTag(tagSets, 'year')),
+    genre: pickTag(tagSets, 'genre')
   };
+  if (folderFor) ({ outDir, allocator } = folderFor(fields));
   const fromTemplate = applyTemplate(settings.NameTemplate || DEFAULT_TEMPLATE, fields);
 
   const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir, base: fromTemplate || path.parse(baseName).name });
@@ -127,6 +131,9 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     healthMsg = h.msg; // flagged only, the file is converted as usual
   }
 
+  if (folderFor) { // created only when a file is really going in
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch (err) { return { status: 'FAIL', name: baseName, note: `cannot create folder: ${err.message}` }; }
+  }
   const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
   const depth = settings.BitDepth === 24 ? 24 : 16;
   const copy = settings.CopyMode !== false && canCopy(fmt, audio, info.format, depth); // same codec: only name, tags and cover change

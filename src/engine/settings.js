@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { FORMAT_KEYS } = require('./formats');
-const { DEFAULT_TEMPLATE, validTemplate } = require('./naming');
+const { DEFAULT_TEMPLATE, validTemplate, validFolderTemplate } = require('./naming');
 
 const TAG_MODES = ['keep', 'clean', 'strip']; // keep everything | keep the main fields only | no tags at all
 
@@ -21,6 +21,9 @@ function defaults(desktopDir) {
     Format: 'mp3',
     BitDepth: 16,
     NameTemplate: DEFAULT_TEMPLATE,
+    FolderTemplate: '',
+    SecondOut: '',
+    SecondFormat: 'off',
     TagMode: 'keep',
     Recurse: false,
     CoverArt: true,
@@ -42,7 +45,7 @@ function defaults(desktopDir) {
 }
 
 // A preset remembers the conversion options only, never folders, window size or the ffmpeg location.
-const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode',
+const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode',
   'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
 const MAX_PRESETS = 20;
 const MAX_PRESET_NAME = 40;
@@ -80,6 +83,13 @@ function merge(base, raw) {
   if ([16, 24].includes(Number(raw.BitDepth))) s.BitDepth = Number(raw.BitDepth);
   if (TAG_MODES.includes(raw.TagMode)) s.TagMode = raw.TagMode;
   if (validTemplate(raw.NameTemplate)) s.NameTemplate = raw.NameTemplate.trim();
+  if (typeof raw.FolderTemplate === 'string') {
+    const t = raw.FolderTemplate.trim();
+    if (!t) s.FolderTemplate = ''; // empty = off; an invalid template is ignored
+    else if (validFolderTemplate(t)) s.FolderTemplate = t;
+  }
+  if (typeof raw.SecondOut === 'string' && raw.SecondOut.length <= 1024 && !raw.SecondOut.includes('\0')) s.SecondOut = raw.SecondOut.trim();
+  if (raw.SecondFormat === 'off' || FORMAT_KEYS.includes(raw.SecondFormat)) s.SecondFormat = raw.SecondFormat;
   if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
   for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];

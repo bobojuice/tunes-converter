@@ -247,6 +247,8 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .panel .presets input[type="text"] { grid-column: 2; }
 .panel .presets .help { grid-column: 2 / 4; min-height: 1em; }
 .panel .btn { font-family: var(--font); }
+.panel .inline { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.panel .inline input[type="text"] { flex: 1; }
 .panel .share { grid-column: 2 / 4; font-size: 11.5px; color: var(--muted); text-transform: none; letter-spacing: 0; }
 .panel .share .link { font-size: 11.5px; }
 .narrow .panel .share { grid-column: 1; }

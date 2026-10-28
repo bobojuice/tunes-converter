@@ -5,7 +5,7 @@
   const MODES = ['off', 'warn', 'skip'];
   const FORMATS = { mp3: 'MP3', m4a: 'AAC (M4A)', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'Opus' };
   const LOSSLESS = ['flac', 'wav', 'aiff'];
-  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
+  const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode', 'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
   const SHORT = { mp3: 'MP3', m4a: 'AAC', flac: 'FLAC', wav: 'WAV', aiff: 'AIFF', opus: 'OPUS' };
   const MODE_LABEL = { off: 'OFF', warn: 'WARN', skip: 'SKIP' };
   const MODE_TIP = {
@@ -48,6 +48,8 @@
     }
     const preset = Array.from($('setName').options).find((o) => o.value === s.NameTemplate);
     $('setName').value = preset ? preset.value : 'custom';
+    const folder = Array.from($('setFolder').options).find((o) => o.value === s.FolderTemplate);
+    $('setFolder').value = folder ? folder.value : 'custom';
     renderPresets();
     // WATCHING only while the watch is really running; if it is switched on but cannot run, say why
     const ws = $('watchState');
@@ -58,7 +60,9 @@
       const kind = el.dataset.show;
       el.hidden = kind === 'depth' ? !LOSSLESS.includes(s.Format)
         : kind === 'lossy' ? LOSSLESS.includes(s.Format)
-          : $('setName').value !== 'custom';
+          : kind === 'fcustom' ? $('setFolder').value !== 'custom'
+            : kind === 'second' ? s.SecondFormat === 'off'
+              : $('setName').value !== 'custom';
     }
     renderControls();
     renderReadouts();
@@ -445,7 +449,7 @@
       addResult(ev);
       addFlag(ev);
       // a converted track with no reading (silent file) clears the meter; skipped or failed ones leave it alone
-      if (ev.status === 'OK' || ev.status === 'WARN') lastPeak = typeof ev.peak === 'number' ? ev.peak : null;
+      if (!ev.second && (ev.status === 'OK' || ev.status === 'WARN')) lastPeak = typeof ev.peak === 'number' ? ev.peak : null;
       renderMeter();
       renderReadouts();
     } else if (ev.type === 'done') {
@@ -603,7 +607,24 @@
     $('setNameTemplate').addEventListener('change', async () => {
       const typed = $('setNameTemplate').value.trim();
       await save({ NameTemplate: typed });
-      if (settings().NameTemplate !== typed) $('nameHelp').textContent = 'Not accepted. Use only {artist} {title} {album} {albumartist} {track} {year} with your own text around them.';
+      if (settings().NameTemplate !== typed) $('nameHelp').textContent = 'Not accepted. Use only {artist} {title} {album} {albumartist} {track} {year} {genre} with your own text around them.';
+    });
+    $('setFolder').addEventListener('change', async () => {
+      if ($('setFolder').value === 'custom') {
+        for (const el of document.querySelectorAll('#panel [data-show="fcustom"]')) el.hidden = false;
+        $('setFolderTemplate').focus();
+      } else {
+        await save({ FolderTemplate: $('setFolder').value });
+      }
+    });
+    $('setFolderTemplate').addEventListener('change', async () => {
+      const typed = $('setFolderTemplate').value.trim();
+      await save({ FolderTemplate: typed });
+      if (settings().FolderTemplate !== typed) $('folderHelp').textContent = 'Not accepted. Use up to 3 levels split with /, with only {artist} {albumartist} {album} {genre} {year} and your own text.';
+    });
+    $('browseSecond').addEventListener('click', async () => {
+      const p = await window.tc.pickFolder({ title: 'Choose where to save the second copy', defaultPath: $('setSecondOut').value });
+      if (p) { $('setSecondOut').value = p; save({ SecondOut: p }); }
     });
     $('presetList').addEventListener('change', async () => {
       const p = (settings().Presets || []).find((x) => x.name === $('presetList').value);
@@ -636,7 +657,7 @@
       renderPresets('');
     });
     for (const el of document.querySelectorAll('#panel [data-key]')) {
-      if (el.id === 'setNameTemplate') continue;
+      if (el.id === 'setNameTemplate' || el.id === 'setFolderTemplate') continue;
       el.addEventListener('change', () => {
         const value = el.type === 'checkbox' ? el.checked : el.hasAttribute('data-number') ? Number(el.value) : el.value;
         save({ [el.dataset.key]: value });

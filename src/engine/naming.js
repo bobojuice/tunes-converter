@@ -1,4 +1,5 @@
 'use strict';
+const path = require('path');
 
 const RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
 
@@ -63,7 +64,7 @@ function pickTag(tagSets, key) {
 }
 
 const DEFAULT_TEMPLATE = '{artist} - {title}';
-const PLACEHOLDERS = ['artist', 'title', 'album', 'albumartist', 'track', 'year'];
+const PLACEHOLDERS = ['artist', 'title', 'album', 'albumartist', 'track', 'year', 'genre'];
 
 // A template is plain text plus known {placeholders}; it needs at least one placeholder.
 function validTemplate(t) {
@@ -85,6 +86,52 @@ function applyTemplate(template, fields) {
   return missing ? '' : out;
 }
 
+// ---- folder template: "{artist}/{album}" -> a relative sub-folder path built from tags ----
+const MAX_FOLDER_TEMPLATE = 100;
+const MAX_FOLDER_SEGMENTS = 3;
+const MAX_FOLDER_NAME = 80;
+// Used when a tag is missing or empty, so a folder name is never empty.
+const FOLDER_FALLBACK = { artist: 'Unknown Artist', albumartist: 'Unknown Artist', album: 'Unknown Album', genre: 'Unknown Genre' };
+
+const folderParts = (t) => t.split(/[\\/]+/).map((p) => p.trim()).filter(Boolean);
+
+// Up to 3 segments split on / or \, only known {placeholders}, at least one placeholder, no "." / ".." segments, not absolute.
+function validFolderTemplate(t) {
+  if (typeof t !== 'string') return false;
+  const text = t.trim();
+  if (!text || text.length > MAX_FOLDER_TEMPLATE || /^[\\/]/.test(text) || /^[a-z]:/i.test(text) || /[\x00-\x1f]/.test(text)) return false;
+  const parts = folderParts(text);
+  if (!parts.length || parts.length > MAX_FOLDER_SEGMENTS) return false;
+  if (parts.some((p) => !p.includes('{') && /^[. ]*$/.test(p))) return false; // a bare "." or ".." segment
+  const found = [...text.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]);
+  if (!found.length || !found.every((k) => PLACEHOLDERS.includes(k))) return false;
+  return !/[{}]/.test(text.replace(/\{[^{}]*\}/g, ''));
+}
+
+// One folder name: illegal characters, leading and trailing dots/spaces, reserved Windows names and length handled.
+// Returns '' when nothing usable is left.
+function safeFolderName(s) {
+  let n = safeName(s).replace(/^[. ]+/, '');
+  n = Array.from(n).slice(0, MAX_FOLDER_NAME).join('');
+  n = trimToBytes(n, 200);
+  if (n && RESERVED.test(n)) n = `_${n}`;
+  return n;
+}
+
+// Relative sub-folder path (joined with the OS separator) for a track. Never empty segments, never ".." and never
+// absolute: tag values are filled in AFTER the template is split, and every segment goes through safeFolderName.
+function folderPath(template, fields) {
+  const parts = folderParts(String(template || '')).slice(0, MAX_FOLDER_SEGMENTS).map((seg) => {
+    const filled = seg.replace(/\{([^{}]*)\}/g, (_, k) => {
+      let v = String(fields[k] || '').trim();
+      if (!v && k === 'albumartist') v = String(fields.artist || '').trim();
+      return v || FOLDER_FALLBACK[k] || 'Unknown';
+    });
+    return safeFolderName(filled) || 'Unknown';
+  });
+  return parts.join(path.sep);
+}
+
 // '3/12' -> '03', '7' -> '07', anything else -> ''
 function trackNumber(v) {
   const m = /^\s*(\d+)/.exec(String(v || ''));
@@ -96,4 +143,4 @@ function yearOf(v) {
   return m ? m[1] : '';
 }
 
-module.exports = { DEFAULT_TEMPLATE, PLACEHOLDERS, validTemplate, applyTemplate, trackNumber, yearOf, joinArtists, safeName, buildName, NameAllocator, pickTag };
+module.exports = { DEFAULT_TEMPLATE, PLACEHOLDERS, MAX_FOLDER_TEMPLATE, MAX_FOLDER_SEGMENTS, validFolderTemplate, folderPath, safeFolderName, validTemplate, applyTemplate, trackNumber, yearOf, joinArtists, safeName, buildName, NameAllocator, pickTag };
