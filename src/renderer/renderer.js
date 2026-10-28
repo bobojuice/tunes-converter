@@ -68,6 +68,7 @@
     renderReadouts();
     renderMeter();
     syncPlayable();
+    renderSpin();
     drawAll();
   }
 
@@ -335,7 +336,7 @@
     }
   }
 
-  function addFlag(res) {
+  function addFlag(res, row) {
     const note = `${res.note || ''}`;
     let color = null;
     let why = '';
@@ -346,6 +347,7 @@
     else if (['WARN', 'LOW', 'FAKE'].includes(res.status)) { color = COL.pink; why = `quality ${res.status}`; }
     if (!color) return;
     const n = flags.length;
+    if (row) { row.dataset.flag = String.fromCharCode(65 + (n % 26)); row.dataset.flagColor = color; } // the platter's cue pill reads these
     flags.push({ at: resultCount - 1, color });
     const m = document.createElement('span');
     m.className = 'flag';
@@ -423,6 +425,7 @@
     n.textContent = note || '';
     row.append(num, tag, body, n);
     addLine(row);
+    return row;
   }
   function clearLog() {
     $('log').textContent = '';
@@ -573,9 +576,24 @@
   function renderSpin() {
     const pl = $('track');
     const on = playState === 'playing';
+    const rec = on && Boolean(settings().PlatterSpin);
     pl.classList.toggle('spinning', on);
+    pl.classList.toggle('record', rec);
+    pl.classList.toggle('cdj', on && !rec);
     pl.classList.toggle('paused', on && Boolean(audio) && audio.paused);
     pl.style.setProperty('--rev', `${(1.8 / (1 + tempo / 100)).toFixed(3)}s`);
+    const cue = pl.querySelector('.cdj-cue');
+    const letter = on && !rec && playRow ? playRow.dataset.flag : '';
+    cue.hidden = !letter;
+    if (letter) { cue.textContent = letter; cue.style.background = playRow.dataset.flagColor || ''; }
+    if (!on || rec) pl.style.removeProperty('--ph');
+    else platterHead();
+  }
+  // CDJ look: the playhead angle follows the track position
+  function platterHead() {
+    const pl = $('track');
+    if (!pl.classList.contains('cdj') || !audio) return;
+    pl.style.setProperty('--ph', `${(playFrac() * 360).toFixed(2)}deg`);
   }
   function hubPlay() {
     if (playState !== 'playing' || !audio) return;
@@ -747,6 +765,7 @@
       const col = Math.round(playFrac() * mw);
       if (col !== lastMiniCol) { lastMiniCol = col; drawMini(); }
       hubPlay();
+      platterHead();
       if (analyser) liveMeter();
       eqRaf = requestAnimationFrame(loop);
     };
@@ -915,8 +934,8 @@
       if (ev.text) $('status').textContent = /^Converting \d+ of/.test(ev.text) && ev.file ? ev.file : ev.text;
     } else if (ev.type === 'result') {
       resultCount += 1;
-      addResult(ev);
-      addFlag(ev);
+      const logRow = addResult(ev);
+      addFlag(ev, logRow);
       // a converted track with no reading (silent file) clears the meter; skipped or failed ones leave it alone
       if (!ev.second && (ev.status === 'OK' || ev.status === 'WARN')) lastPeak = typeof ev.peak === 'number' ? ev.peak : null;
       renderMeter();

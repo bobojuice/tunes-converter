@@ -74,6 +74,7 @@
     <label class="check"><input type="checkbox" data-key="SaveReport"> Save a report file after each run</label>
     <label class="check"><input type="checkbox" data-key="WatchFolder"> Watch the songs folder and convert new files automatically <span id="watchState" class="watch-state" hidden>WATCHING</span></label>
     <label class="check"><input type="checkbox" data-key="PlayPreview"> Play converted tracks from the results list (preview only, never changes files)</label>
+    <label class="check"><input type="checkbox" data-key="PlatterSpin"> Spin the cover art like a record (instead of the CDJ-3000 look)</label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 
@@ -187,6 +188,9 @@
           <div id="art" class="art"></div>
           <span class="spin-dot"></span>
         </div>
+        <div class="cdj-rim" aria-hidden="true"></div>
+        <div class="cdj-head" aria-hidden="true"></div>
+        <span class="cdj-cue" aria-hidden="true" hidden></span>
         <div class="sheen" aria-hidden="true"></div>
         <div class="marker"><span></span></div>
         <div class="hub">

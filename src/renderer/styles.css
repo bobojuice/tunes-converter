@@ -188,21 +188,21 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .ring-mask { position: absolute; inset: 7px; border-radius: 50%; background: var(--bg); }
 /* the disc turns (33 1/3 rpm = 1.8 s per turn, scaled by tempo in JS via --rev); the progress ring and its marker stay put */
 .spin { position: absolute; inset: 0; border-radius: 50%; }
-.platter.spinning .spin { animation: platter-spin var(--rev, 1.8s) linear infinite; }
-.platter.spinning.paused .spin { animation-play-state: paused; }
+.platter.record .spin { animation: platter-spin var(--rev, 1.8s) linear infinite; }
+.platter.record.paused .spin { animation-play-state: paused; }
 @keyframes platter-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .platter.spinning .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .platter.record .spin { animation: none; } }
 .art { position: absolute; inset: 18px; display: none; border-radius: 50%; border: 1px solid var(--edge); background-size: cover; background-position: center; background-repeat: no-repeat; }
 .platter.has-art .art { display: block; }
 .spin-dot { position: absolute; left: 108px; top: 22px; width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 6px var(--orange); display: none; }
-.platter.spinning .spin-dot { display: block; }
+.platter.record .spin-dot { display: block; }
 .sheen {
   position: absolute; inset: 18px; border-radius: 50%; pointer-events: none; display: none;
   background:
     conic-gradient(from 20deg, rgba(255, 255, 255, 0) 0 10%, rgba(255, 255, 255, 0.16) 17%, rgba(255, 255, 255, 0) 25% 60%, rgba(255, 255, 255, 0.1) 67%, rgba(255, 255, 255, 0) 75% 100%),
     repeating-radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 0 3px, rgba(0, 0, 0, 0.08) 3px 4px);
 }
-.platter.has-art .sheen { display: block; }
+.platter.has-art:not(.cdj) .sheen { display: block; }
 .platter.spinning .hub-l, .platter.spinning .hub-c { display: none; }
 .platter.spinning .hub-big { font-size: 40px; }
 .platter.spinning.has-art .hub { left: 78px; top: 78px; width: 68px; height: 68px; background: rgba(14, 16, 20, 0.88); box-shadow: 0 0 0 3px rgba(5, 5, 6, 0.55); }
@@ -326,3 +326,32 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .overflow, .overflow body { overflow-y: auto; }
 .overflow .app { height: auto; min-height: 100vh; overflow: visible; }
 .overflow .main-view > .log { flex: none; height: 160px; }
+
+/* CDJ-3000 look while a track plays (the PlatterSpin setting switches to the spinning record): still art, a turning LED rim,
+   a playhead sweeping the ring (--ph, set every frame), the played part dimmer behind it, a cue pill at the top */
+.cdj-rim, .cdj-head, .cdj-cue { display: none; }
+.platter.cdj { background: conic-gradient(rgba(255, 140, 40, 0.38) 0 var(--ph, 0deg), #1b1e24 var(--ph, 0deg) 360deg); }
+.platter.cdj .marker { display: none; }
+.platter.cdj .cdj-rim {
+  display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.92) 0 2deg, rgba(255, 255, 255, 0) 2deg 6deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px) calc(100% - 9px), transparent calc(100% - 9px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px) calc(100% - 9px), transparent calc(100% - 9px));
+  animation: platter-spin var(--rev, 1.8s) linear infinite;
+}
+.platter.cdj.paused .cdj-rim { animation-play-state: paused; }
+.platter.cdj .cdj-head {
+  display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  transform: rotate(var(--ph, 0deg));
+  background: conic-gradient(from -12deg, rgba(255, 255, 255, 0) 0, rgba(255, 190, 110, 0.9) 4deg, #fff 12deg, rgba(255, 255, 255, 0) 12deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+  filter: drop-shadow(0 0 4px var(--orange)) drop-shadow(0 0 8px rgba(255, 140, 40, 0.7));
+}
+.platter.cdj .cdj-cue {
+  display: block; position: absolute; left: 50%; top: 9px; transform: translateX(-50%); min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box;
+  border-radius: 7px; font: 700 10px/14px var(--cond); text-align: center; color: #0b0c0e; box-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+}
+.platter.cdj .cdj-cue[hidden] { display: none; }
+.platter.cdj.has-art .hub { left: 82px; top: 158px; width: 60px; height: 22px; border-radius: 11px; background: rgba(14, 16, 20, 0.88); box-shadow: 0 0 0 2px rgba(5, 5, 6, 0.55); }
+.platter.cdj.has-art .hub-big { font-size: 15px; letter-spacing: 0; line-height: 1; }

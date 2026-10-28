@@ -272,6 +272,10 @@ test('settings: PlayPreview defaults on, boolean only, not a preset key', () => 
   assert.equal(settings.merge(d, { PlayPreview: 'no' }).PlayPreview, true);
   assert.equal(settings.merge(d, { PlayPreview: 0 }).PlayPreview, true);
   assert.equal(settings.PRESET_KEYS.includes('PlayPreview'), false);
+  assert.equal(d.PlatterSpin, false);
+  assert.equal(settings.merge(d, { PlatterSpin: true }).PlatterSpin, true);
+  assert.equal(settings.merge(d, { PlatterSpin: 'yes' }).PlatterSpin, false);
+  assert.equal(settings.PRESET_KEYS.includes('PlatterSpin'), false);
 });
 
 test('rangeFor: whole file, ranges, suffix ranges, bad ranges', () => {
