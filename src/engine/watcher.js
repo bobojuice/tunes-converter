@@ -139,7 +139,9 @@ function watchPlan(s) {
 // Output folders the watch must ignore: the main output, plus the second output only while the second copy is on.
 // A retained SecondOut value with SecondFormat 'off' is not an output, so it must not hide new songs.
 function watchOutDirs(s) {
-  const second = s.SecondFormat && s.SecondFormat !== 'off' && typeof s.SecondOut === 'string' && s.SecondOut.trim() ? [s.SecondOut] : [];
+  // Same eligibility as the batch: a second copy folder equal to the songs or output folder is switched off there.
+  const second = s.SecondFormat && s.SecondFormat !== 'off' && typeof s.SecondOut === 'string' && s.SecondOut.trim()
+    && !(s.In && sameFolder(s.SecondOut, s.In)) && !(s.Out && sameFolder(s.SecondOut, s.Out)) ? [s.SecondOut] : [];
   return [s.Out, ...second].filter(Boolean);
 }
 

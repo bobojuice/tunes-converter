@@ -120,6 +120,11 @@ test('watchOutDirs: the second output is excluded only while the second copy is 
   assert.deepEqual(watchOutDirs({ ...s, SecondFormat: 'flac' }), ['C:\\out', 'C:\\songs']);
   assert.deepEqual(watchOutDirs({ ...s, SecondFormat: 'flac', SecondOut: '  ' }), ['C:\\out']);
   assert.deepEqual(watchOutDirs({ ...s, SecondFormat: undefined }), ['C:\\out']);
+  // a second folder equal to the songs or output folder is switched off by the batch, so it must not hide the songs
+  const songs = fresh('songs');
+  const outF = fresh('outf');
+  assert.deepEqual(watchOutDirs({ In: songs, Out: outF, SecondFormat: 'flac', SecondOut: songs }), [outF]);
+  assert.deepEqual(watchOutDirs({ In: songs, Out: outF, SecondFormat: 'flac', SecondOut: outF }), [outF]);
   // turning the second copy on or off restarts the watcher so the exclusion follows
   const inDir = fresh('in');
   const o = fresh('o');
