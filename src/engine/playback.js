@@ -232,7 +232,10 @@ async function waveformPeaks(wavFile, perSec = 100) {
     const frameBytes = channels * 2;
     const totalFrames = Math.floor(dataLen / frameBytes);
     if (totalFrames <= 0) return empty();
-    const binFrames = Math.max(1, Math.round(rate / perSec));
+    // Exact (fractional) bin length, widened for very long tracks so the bins always cover the whole duration;
+    // `effPerSec` is the true bin rate the window must use for timing.
+    const binFrames = Math.max(1, rate / perSec, totalFrames / MAX_PEAKS);
+    const effPerSec = rate / binFrames;
     const bins = Math.min(MAX_PEAKS, Math.ceil(totalFrames / binFrames));
     const peaks = new Uint8Array(bins);
     const maxArr = new Int32Array(bins);
@@ -256,7 +259,7 @@ async function waveformPeaks(wavFile, perSec = 100) {
       frame += whole / frameBytes;
     }
     for (let b = 0; b < bins; b++) peaks[b] = Math.min(255, Math.max(0, Math.round(maxArr[b] / 32768 * 255)));
-    return { peaks, perSec, duration: totalFrames / rate };
+    return { peaks, perSec: effPerSec, duration: totalFrames / rate };
   } catch {
     return empty();
   } finally {

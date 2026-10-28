@@ -324,3 +324,18 @@ test('batch: a skipped duplicate or an existing file names the converted copy to
   await runBatch({ inDir, outDir: out, settings: { ...opts, DuplicateMode: 'off' }, tools, signal: new AbortController().signal, onEvent: (e) => again.push(e) });
   for (const e of again.filter((x) => x.type === 'result' && x.status === 'SKIP')) assert.ok(fs.existsSync(path.join(out, e.play)), e.play);
 });
+
+test('waveformPeaks: bins keep true timing at other sample rates and cover tracks over an hour', async () => {
+  const d = fresh('wf2');
+  const a = path.join(d, 'r22.wav');
+  fs.writeFileSync(a, wavBuf(22050 * 20, 22050, false)); // 20 s at 22.05 kHz
+  const r = await pb.waveformPeaks(a);
+  assert.ok(Math.abs(r.peaks.length / r.perSec - r.duration) < 0.02, `${r.peaks.length} bins at ${r.perSec}/s vs ${r.duration}s`);
+  assert.ok(Math.abs(r.perSec - 100) < 0.5);
+  const b = path.join(d, 'long.wav'); // 1 h 2 min at 4 kHz: more than the bin cap at 100/s
+  fs.writeFileSync(b, wavBuf(4000 * 3720, 4000, false));
+  const l = await pb.waveformPeaks(b);
+  assert.ok(l.peaks.length <= 360000);
+  assert.ok(Math.abs(l.peaks.length / l.perSec - l.duration) < 0.5, 'bins cover the whole track');
+  assert.ok(l.peaks[l.peaks.length - 1] === 0 && l.peaks[Math.floor(l.peaks.length * 0.1)] > 0, 'first half loud, end silent');
+});
