@@ -541,7 +541,13 @@
   }
   function updateTime() {
     const txt = `${fmtTime(audio.currentTime)} / ${fmtTime(dur())}`;
-    if (txt !== lastTime) { lastTime = txt; $('playTime').textContent = txt; }
+    if (txt !== lastTime) {
+      lastTime = txt;
+      $('playTime').textContent = txt;
+      // the TIME LEFT readout counts down the playing track (the conversion estimate comes back when playback stops)
+      const left = Math.max(0, Math.round(dur() - audio.currentTime));
+      if (Number.isFinite(left)) $('roTime').textContent = `${pad2(Math.floor(left / 60))}:${pad2(left % 60)}`;
+    }
   }
 
   function setVolume(v, persist) {
