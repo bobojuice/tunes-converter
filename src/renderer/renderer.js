@@ -1281,7 +1281,7 @@
     $('playPause').addEventListener('click', () => togglePause());
     setVolume(volume, false);
     $('vol').addEventListener('input', () => setVolume(Number($('vol').value), true));
-    // CDJ jog finger pockets: 24 ovals around the vinyl ring (they turn with the rim)
+    // CDJ jog finger pockets: 24 ovals around the vinyl ring (static)
     const pockets = $('cdjPockets');
     for (let i = 0; i < 24; i++) {
       const p = document.createElement('i');
