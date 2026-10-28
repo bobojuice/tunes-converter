@@ -173,13 +173,13 @@ async function tcplayHandler(request) {
   try {
     if (request.method !== 'GET' && request.method !== 'HEAD') return deny(405);
     const p = getPlayer();
-    const d = playback.serveDecision(request.url, (t) => p.resolveToken(t));
+    const d = playback.serveDecision(request.url, (t) => p.resolveToken(t), (t) => p.resolveArt(t));
     if (!d.ok) return deny(d.status);
     if (!p.tempRoot || !playback.insideRoot(p.tempRoot, d.file)) return deny(404);
     const size = fs.statSync(d.file).size;
     const r = playback.rangeFor(size, request.headers.get('range'));
     const headers = new Headers({
-      'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+      'Content-Type': d.kind === 'image' ? 'image/jpeg' : 'audio/wav', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
     });
     if (r.status === 416) { headers.set('Content-Range', `bytes */${size}`); return new Response(null, { status: 416, headers }); }
     headers.set('Content-Length', String(r.end - r.start + 1));
@@ -203,7 +203,7 @@ function registerIpc() {
     const src = playback.resolvePlayable(name, s.Out);
     if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
     const r = await getPlayer().prepare(t.ffmpeg, src, ticket);
-    return r.ok ? { ok: true, url: `tcplay://track/${r.token}` } : { ok: false, cancelled: r.cancelled, error: r.error };
+    return r.ok ? { ok: true, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
   });
 
   ipcMain.handle('play:stop', (event) => {

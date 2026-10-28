@@ -92,8 +92,9 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   // The same song from another file or format (not the "Name (2)" de-duplication, which is about file names).
   const key = settings.DuplicateMode === 'off' || !seen ? '' : songKey(artist, title);
   const length = Number(info.format && info.format.duration) || 0;
-  const twin = key ? seen.find(key, length) : null;
-  if (twin && settings.DuplicateMode === 'skip') return { status: 'SKIP', name: baseName, note: `same song as ${twin}`, duplicate: true };
+  const twinEntry = key ? seen.findEntry(key, length) : null;
+  const twin = twinEntry ? twinEntry.name : null;
+  if (twin && settings.DuplicateMode === 'skip') return { status: 'SKIP', name: baseName, note: `same song as ${twin}`, duplicate: true, twinFile: path.join(twinEntry.dir || outDir, twin) };
   const { name, duplicate } = allocator.allocate(stem);
   const dupNote = duplicate ? 'duplicate name; ' : '';
   const fmt = FORMATS[settings.Format] || FORMATS.mp3;
@@ -101,7 +102,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const dest = path.join(outDir, outName);
   try {
     if (fs.statSync(dest).isDirectory()) return { status: 'FAIL', name: baseName, note: `a folder named ${outName} is in the way` };
-    return { status: 'SKIP', name: outName, note: 'already exists' };
+    return { status: 'SKIP', name: outName, note: 'already exists', twinFile: dest };
   } catch { /* nothing there yet */ }
 
   let quality = null;
@@ -207,7 +208,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       playerMsg = playerNote(settings.PlayerModel, { format: settings.Format in FORMATS ? settings.Format : 'mp3', rate, depth: fmt.depth ? depth : null });
       if (playerMsg) note += ` | ${playerMsg}`;
     }
-    if (key) seen.add(key, length, outName);
+    if (key) seen.add(key, length, outName, outDir);
     return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), player: Boolean(playerMsg), ...(peakDb !== null ? { peakDb } : {}) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };

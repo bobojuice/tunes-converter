@@ -89,6 +89,18 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .play-stop:hover:not(:disabled) { background: #0b2830; border-color: #2b5b69; }
 .play-stop:disabled { color: #4b7c88; }
 .play-time { font: 11.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
+.tp-ctl { display: flex; align-items: center; gap: 5px; }
+.tp-l { font: 9px var(--mono); letter-spacing: 0.1em; color: var(--lcd-dim); }
+.tp-v { min-width: 44px; text-align: right; font: 10.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
+.tp-range { -webkit-appearance: none; appearance: none; width: 64px; height: 16px; margin: 0; padding: 0; background: transparent; cursor: pointer; }
+.tp-range::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: var(--lcd-edge); }
+.tp-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 14px; margin-top: -5.5px; border-radius: 2px; border: 1px solid var(--lcd); background: var(--blue); }
+#tempo::-webkit-slider-thumb { background: var(--orange); }
+.tp-range:hover::-webkit-slider-runnable-track { background: #2b5b69; }
+.tp-range:focus-visible { outline-offset: 1px; }
+.narrow .tp-l { display: none; }
+.narrow .tp-range { width: 52px; }
+.tiny .tp-tempo { display: none; }
 .wave { display: block; width: 100%; height: 70px; }
 .wave.seekable { cursor: pointer; }
 .overview { position: relative; height: 40px; }
@@ -100,7 +112,11 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   position: absolute; top: 0; width: 18px; height: 18px; margin-left: -9px; border-radius: 3px; color: var(--lcd);
   font: 500 11px var(--mono); display: flex; align-items: center; justify-content: center;
 }
-.ov-head { position: absolute; top: 0; height: 38px; width: 0; border-left: 2px solid var(--orange); left: 0; }
+.ov-head { position: absolute; top: 0; height: 38px; width: 0; border-left: 2px solid var(--orange); left: 0; pointer-events: none; }
+/* while a track is loaded the strip is a scrubber; the batch ruler and flags are hidden (not removed) and come back after */
+.overview.scrub { cursor: pointer; touch-action: none; }
+.overview.scrub .ruler, .overview.scrub .markers { visibility: hidden; }
+.ov-tip { position: absolute; top: 0; height: 16px; padding: 0 5px; transform: translateX(-50%); border-radius: 3px; background: rgba(0, 0, 0, 0.7); border: 1px solid var(--lcd-edge); color: var(--lcd-hi); font: 10.5px/14px var(--mono); white-space: nowrap; pointer-events: none; }
 .readouts { display: grid; grid-template-columns: 90px 90px 1fr 90px 90px; gap: 10px; align-items: center; margin-top: 8px; }
 .ro { border: 1px solid var(--lcd-edge); border-radius: 4px; padding: 3px 8px; text-align: left; background: transparent; color: inherit; font: inherit; }
 .ro-btn { display: block; }
@@ -170,6 +186,27 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .platter-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .platter { position: relative; width: 224px; height: 224px; border-radius: 50%; --p: 0; background: conic-gradient(var(--blue) 0 calc(var(--p) * 1%), #1b1e24 calc(var(--p) * 1%) 100%); }
 .ring-mask { position: absolute; inset: 7px; border-radius: 50%; background: var(--bg); }
+/* the disc turns (33 1/3 rpm = 1.8 s per turn, scaled by tempo in JS via --rev); the progress ring and its marker stay put */
+.spin { position: absolute; inset: 0; border-radius: 50%; }
+.platter.spinning .spin { animation: platter-spin var(--rev, 1.8s) linear infinite; }
+.platter.spinning.paused .spin { animation-play-state: paused; }
+@keyframes platter-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .platter.spinning .spin { animation: none; } }
+.art { position: absolute; inset: 18px; display: none; border-radius: 50%; border: 1px solid var(--edge); background-size: cover; background-position: center; background-repeat: no-repeat; }
+.platter.has-art .art { display: block; }
+.spin-dot { position: absolute; left: 108px; top: 22px; width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 6px var(--orange); display: none; }
+.platter.spinning .spin-dot { display: block; }
+.sheen {
+  position: absolute; inset: 18px; border-radius: 50%; pointer-events: none; display: none;
+  background:
+    conic-gradient(from 20deg, rgba(255, 255, 255, 0) 0 10%, rgba(255, 255, 255, 0.16) 17%, rgba(255, 255, 255, 0) 25% 60%, rgba(255, 255, 255, 0.1) 67%, rgba(255, 255, 255, 0) 75% 100%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 0 3px, rgba(0, 0, 0, 0.08) 3px 4px);
+}
+.platter.has-art .sheen { display: block; }
+.platter.spinning .hub-l, .platter.spinning .hub-c { display: none; }
+.platter.spinning .hub-big { font-size: 40px; }
+.platter.spinning.has-art .hub { left: 78px; top: 78px; width: 68px; height: 68px; background: rgba(14, 16, 20, 0.88); box-shadow: 0 0 0 3px rgba(5, 5, 6, 0.55); }
+.platter.spinning.has-art .hub-big { font-size: 20px; letter-spacing: 0; }
 .deck-face { position: absolute; inset: 18px; border-radius: 50%; background: #17191d; border: 1px solid var(--edge); }
 .marker { position: absolute; inset: 0; transform: rotate(calc(var(--p) * 3.6deg)); pointer-events: none; }
 .marker span { position: absolute; left: 106px; top: 1px; width: 12px; height: 12px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }

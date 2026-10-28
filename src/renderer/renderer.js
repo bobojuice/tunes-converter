@@ -160,10 +160,12 @@
       $('hubBig').textContent = SHORT[s.Format];
       $('count').textContent = '';
     }
+    if (playState === 'playing') hubPlay(); // elapsed time sits in the hub while a track plays
   }
 
   // ---- peak meter: 20 segments (13 green, 4 amber, 3 red), -30 dB .. 0 dB ----
   function renderMeter() {
+    if (meterLive()) return; // the live level owns the meter while a track plays
     const box = $('meter');
     if (!box.childNodes.length) {
       for (let i = 0; i < 20; i++) {
@@ -255,19 +257,24 @@
     return progTotal ? Math.min(1, progIndex / progTotal) : phase === 'done' ? 1 : 0;
   }
 
-  function drawWave() {
-    if (eqActive()) { drawEq(); return; }
-    const f = fitCanvas($('wave'));
-    if (!f) return;
-    const { ctx, w, h } = f;
-    const p = playFraction();
-    const idle = phase === 'idle';
+  // red ruler ticks top and bottom (every 4th is red)
+  function drawTicks(ctx, w, h) {
     for (let i = 0; i < 25; i++) {
       ctx.fillStyle = i % 4 === 0 ? COL.red : '#6B8A92';
       const x = Math.round((i / 24) * (w - 1));
       ctx.fillRect(x, 0, 1, 6);
       ctx.fillRect(x, h - 6, 1, 6);
     }
+  }
+
+  function drawWave() {
+    if (playDrawing()) { drawPlay(); return; }
+    const f = fitCanvas($('wave'));
+    if (!f) return;
+    const { ctx, w, h } = f;
+    const p = playFraction();
+    const idle = phase === 'idle';
+    drawTicks(ctx, w, h);
     const slot = w / WAVE_BARS;
     const cy = h / 2;
     for (let i = 0; i < WAVE_BARS; i++) {
@@ -296,6 +303,7 @@
     const f = fitCanvas($('mini'));
     if (!f) return;
     const { ctx, w, h } = f;
+    if (playState === 'playing') { drawMiniPlay(ctx, w, h); return; }
     const p = playFraction();
     const idle = phase === 'idle';
     const slot = w / MINI_BARS;
@@ -381,7 +389,7 @@
     d.textContent = text;
     addLine(d);
   }
-  function addResult({ status, name, note, second }) {
+  function addResult({ status, name, note, second, play }) {
     const row = document.createElement('div');
     row.className = 'row-log';
     const num = document.createElement('span');
@@ -389,13 +397,15 @@
     const numText = document.createElement('span');
     numText.textContent = pad2(resultCount);
     num.appendChild(numText);
-    if (name && !second && (status === 'OK' || status === 'WARN')) {
-      row.dataset.play = name;
+    // A skipped file plays the converted copy it duplicates (or that was already there): `play` names it.
+    const playName = play || (status === 'OK' || status === 'WARN' ? name : '');
+    if (playName && !second) {
+      row.dataset.play = playName;
       const btn = document.createElement('button');
       btn.className = 'play';
       btn.type = 'button';
       btn.textContent = '▶';
-      btn.setAttribute('aria-label', `Play ${name}`);
+      btn.setAttribute('aria-label', `Play ${playName}`);
       btn.title = 'Play preview (never changes files)';
       num.appendChild(btn);
       const on = Boolean(settings().PlayPreview);
@@ -423,10 +433,14 @@
 
   // ---- playback preview (never changes files; the main process decodes to a temp file and serves it as tcplay://) ----
   const EQ_BANDS = 32;
+  const WIN = 10; // seconds of waveform shown around the playhead
+  const VOL_KEY = 'tc.vol';
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   let audio = null;
   let actx = null;
   let analyser = null;
   let freqData = null;
+  let timeData = null;
   let bandEdges = null;
   let peaks = new Float32Array(EQ_BANDS);
   let playState = 'idle'; // idle | preparing | playing
@@ -436,10 +450,47 @@
   let savedStatus = '';
   let ourStatus = null;
   let lastTime = '';
+  let wf = null; // { a: Uint8Array of peaks 0..255, per: bins per second } or null (old bars only)
+  let trackLen = 0;
+  let ctLast = -1;
+  let ctAt = 0;
+  let lastMiniCol = -1;
+  let miniCache = null;
+  let meterLvl = -60;
+  let meterLit = -1;
+  let meterTxt = '';
+  let ovDrag = false;
+  let volume = 100;
+  let tempo = 0;
+  try {
+    const saved = localStorage.getItem(VOL_KEY);
+    if (saved !== null && Number.isFinite(Number(saved))) volume = clamp(Math.round(Number(saved)), 0, 100);
+  } catch (err) { /* storage unavailable: keep the default */ }
 
-  const eqActive = () => playState === 'playing' && Boolean(analyser);
+  const playDrawing = () => playState === 'playing' && Boolean(analyser || wf);
+  const meterLive = () => playState === 'playing' && Boolean(analyser);
   const baseName = (n) => String(n).split(/[\\/]/).pop();
   const fmtTime = (t) => (Number.isFinite(t) && t >= 0 ? `${Math.floor(t / 60)}:${pad2(Math.floor(t % 60))}` : '--:--');
+  const dur = () => (audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : trackLen);
+
+  // currentTime only moves in small steps: smooth it between steps so the scrolling waveform glides
+  function curTime() {
+    const ct = audio.currentTime;
+    const now = performance.now();
+    if (ct !== ctLast) { ctLast = ct; ctAt = now; }
+    if (audio.paused) return ct;
+    const est = ct + Math.min(0.12, ((now - ctAt) / 1000) * audio.playbackRate);
+    const d = dur();
+    return d > 0 ? Math.min(d, est) : est;
+  }
+  function playFrac() { const d = dur(); return d > 0 ? clamp(curTime() / d, 0, 1) : 0; }
+  function seekTo(t) {
+    const d = dur();
+    if (!audio || !(d > 0)) return;
+    audio.currentTime = clamp(t, 0, d);
+    ctLast = -1;
+    updateTime();
+  }
 
   function setPlayStatus(text) {
     if (ourStatus === null) savedStatus = $('status').textContent;
@@ -472,11 +523,98 @@
   function showTransport(on) {
     $('transport').hidden = !on;
     $('playStop').disabled = !on;
+    $('playPause').disabled = !on || playState !== 'playing';
     $('wave').classList.toggle('seekable', playState === 'playing');
+    $('overview').classList.toggle('scrub', playState === 'playing');
   }
   function updateTime() {
-    const txt = `${fmtTime(audio.currentTime)} / ${fmtTime(audio.duration)}`;
+    const txt = `${fmtTime(audio.currentTime)} / ${fmtTime(dur())}`;
     if (txt !== lastTime) { lastTime = txt; $('playTime').textContent = txt; }
+  }
+
+  function setVolume(v, persist) {
+    volume = clamp(Math.round(v), 0, 100);
+    $('vol').value = String(volume);
+    $('vol').title = `Volume ${volume}%`;
+    if (audio) audio.volume = volume / 100;
+    if (persist) { try { localStorage.setItem(VOL_KEY, String(volume)); } catch (err) { /* not saved */ } }
+  }
+  function applyRate() {
+    if (!audio) return;
+    const r = 1 + tempo / 100;
+    audio.defaultPlaybackRate = r; // setting a new src resets playbackRate to this
+    audio.playbackRate = r;
+    try { audio.preservesPitch = false; audio.webkitPreservesPitch = false; } catch (err) { /* vinyl-style pitch is optional */ }
+  }
+  function setTempo(t) {
+    tempo = clamp(Math.round(t * 10) / 10, -8, 8);
+    $('tempo').value = String(tempo);
+    $('tempoVal').textContent = `${tempo < 0 ? '-' : '+'}${Math.abs(tempo).toFixed(1)}%`;
+    $('tempo').title = `Tempo ${$('tempoVal').textContent} (double-click to reset)`;
+    applyRate();
+    renderSpin();
+  }
+  function togglePause() {
+    if (playState !== 'playing' || !audio) return;
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  }
+  function syncPause() {
+    const paused = playState === 'playing' && Boolean(audio) && audio.paused;
+    $('playPause').textContent = paused ? '▶' : '❚❚';
+    const label = paused ? 'Resume playback' : 'Pause playback';
+    $('playPause').setAttribute('aria-label', label);
+    $('playPause').title = label;
+    ctLast = -1;
+    renderSpin();
+  }
+
+  // platter: 33 1/3 rpm = 1.8 s per turn, scaled by the tempo; paused with the audio
+  function renderSpin() {
+    const pl = $('track');
+    const on = playState === 'playing';
+    pl.classList.toggle('spinning', on);
+    pl.classList.toggle('paused', on && Boolean(audio) && audio.paused);
+    pl.style.setProperty('--rev', `${(1.8 / (1 + tempo / 100)).toFixed(3)}s`);
+  }
+  function hubPlay() {
+    if (playState !== 'playing' || !audio) return;
+    const t = fmtTime(audio.currentTime);
+    if ($('hubBig').textContent !== t) $('hubBig').textContent = t;
+  }
+  function setArt(url) {
+    $('art').style.backgroundImage = url ? `url("${url}")` : '';
+    $('track').classList.toggle('has-art', Boolean(url));
+  }
+  function loadArt(url, req) {
+    if (typeof url !== 'string' || !/^tcplay:\/\/art\/[A-Za-z0-9._~%-]+$/.test(url)) return;
+    const im = new Image();
+    im.onload = () => { if (req === playReq && playState === 'playing') setArt(url); };
+    im.src = url;
+  }
+
+  // the left meter shows the live output level while a track plays
+  function enterLive() {
+    if (!analyser) return;
+    meterLvl = -60;
+    meterLit = -1;
+    meterTxt = '';
+    $('peakLabel').textContent = 'LEVEL';
+    $('meter').setAttribute('aria-label', 'Live playback level');
+  }
+  function liveMeter() {
+    analyser.getByteTimeDomainData(timeData);
+    let pk = 0;
+    for (let i = 0; i < timeData.length; i++) { const d = Math.abs(timeData[i] - 128); if (d > pk) pk = d; }
+    const db = pk > 0 ? 20 * Math.log10(pk / 128) : -60;
+    meterLvl = Math.max(db, meterLvl - 0.7); // falls smoothly
+    const lit = Math.round(clamp((meterLvl + 30) / 30, 0, 1) * 20);
+    if (lit !== meterLit) {
+      meterLit = lit;
+      Array.from($('meter').children).forEach((seg, i) => seg.classList.toggle('on', i < lit));
+    }
+    const txt = meterLvl <= -59 ? '--' : `${meterLvl > 0 ? '+' : ''}${meterLvl.toFixed(0)} dB`;
+    if (txt !== meterTxt) { meterTxt = txt; $('peakVal').textContent = txt; }
   }
 
   function ensureAudio() {
@@ -484,7 +622,11 @@
       audio = new Audio();
       audio.crossOrigin = 'anonymous';
       audio.preload = 'auto';
+      audio.volume = volume / 100;
+      applyRate();
       audio.addEventListener('ended', () => { if (playState !== 'idle') stopPlayback(); });
+      audio.addEventListener('play', () => { if (playState === 'playing') syncPause(); });
+      audio.addEventListener('pause', () => { if (playState === 'playing') syncPause(); });
       audio.addEventListener('error', () => {
         if (playState !== 'playing') return;
         playFailed('Could not play this track.');
@@ -503,6 +645,7 @@
         src.connect(analyser);
         analyser.connect(actx.destination);
         freqData = new Uint8Array(analyser.frequencyBinCount);
+        timeData = new Uint8Array(analyser.fftSize);
         const nyq = actx.sampleRate / 2;
         const lo = 40;
         const hi = Math.min(16000, nyq);
@@ -535,10 +678,23 @@
     playRow = null;
     peaks.fill(0);
     lastTime = '';
+    wf = null;
+    trackLen = 0;
+    miniCache = null;
+    lastMiniCol = -1;
+    ovDrag = false;
+    $('ovTip').hidden = true;
+    setArt('');
+    renderSpin();
+    syncPause();
     showTransport(false);
     restoreStatus();
-    if (was) window.tc.playStop().catch(() => {});
-    drawWave();
+    if (was) {
+      window.tc.playStop().catch(() => {});
+      renderReadouts(); // hub text back
+      renderMeter(); // stored peak reading back
+    }
+    drawAll();
   }
 
   async function startPlayback(row) {
@@ -558,6 +714,7 @@
     if (!r || !r.ok) { playFailed((r && r.error) || 'Could not prepare this track.'); return; }
     try {
       audio.src = r.url;
+      applyRate();
       await audio.play();
     } catch (err) {
       if (req !== playReq) return;
@@ -565,14 +722,32 @@
       return;
     }
     if (req !== playReq) return;
+    const raw = r.peaks;
+    wf = raw && raw.length > 0
+      ? { a: ArrayBuffer.isView(raw) ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength) : new Uint8Array(raw), per: r.perSec > 0 ? r.perSec : 100 }
+      : null;
+    trackLen = r.duration > 0 ? r.duration : 0;
+    miniCache = null;
+    lastMiniCol = -1;
+    ctLast = -1;
     playState = 'playing';
+    applyRate();
     setPlayStatus(`▶ ${baseName(name)}`);
     showTransport(true);
+    syncPause();
+    enterLive();
+    loadArt(r.artUrl, req);
+    renderReadouts();
     updateTime();
     const loop = () => {
       if (playState !== 'playing') { eqRaf = 0; return; }
       updateTime();
-      if (analyser) drawEq();
+      drawPlay();
+      const mw = $('mini').clientWidth;
+      const col = Math.round(playFrac() * mw);
+      if (col !== lastMiniCol) { lastMiniCol = col; drawMini(); }
+      hubPlay();
+      if (analyser) liveMeter();
       eqRaf = requestAnimationFrame(loop);
     };
     eqRaf = requestAnimationFrame(loop);
@@ -584,41 +759,116 @@
     else startPlayback(row);
   }
 
-  function drawEq() {
+  // Big canvas while playing: faint live EQ bars behind a scrolling zoomed waveform with a fixed orange centre line.
+  function drawPlay() {
     const f = fitCanvas($('wave'));
     if (!f) return;
     const { ctx, w, h } = f;
-    for (let i = 0; i < 25; i++) {
-      ctx.fillStyle = i % 4 === 0 ? COL.red : '#6B8A92';
-      const x = Math.round((i / 24) * (w - 1));
-      ctx.fillRect(x, 0, 1, 6);
-      ctx.fillRect(x, h - 6, 1, 6);
-    }
-    analyser.getByteFrequencyData(freqData);
-    const slot = w / EQ_BANDS;
+    drawTicks(ctx, w, h);
     const cy = h / 2;
     const maxH = h - 16;
-    for (let i = 0; i < EQ_BANDS; i++) {
-      const a = bandEdges[i];
-      const b = Math.max(a + 1, bandEdges[i + 1]);
-      let m = 0;
-      for (let k = a; k < b && k < freqData.length; k++) if (freqData[k] > m) m = freqData[k];
-      const v = (m / 255) ** 1.8; // a steeper curve keeps loud, dense music from filling every bar
-      peaks[i] = Math.max(v, peaks[i] - 0.012); // caps fall slowly
-      const bh = Math.max(2, Math.round(v * maxH));
-      const x = i * slot + 1;
-      const bw = Math.max(2, slot - 2);
-      ctx.fillStyle = v > 0.45 ? COL.blue : COL.dim;
-      ctx.fillRect(x, cy - bh / 2, bw, bh);
-      const ph = Math.max(2, peaks[i] * maxH);
-      ctx.fillStyle = COL.orange;
-      ctx.fillRect(x, cy - ph / 2 - 2, bw, 2);
-      ctx.fillRect(x, cy + ph / 2, bw, 2);
+    if (analyser) {
+      analyser.getByteFrequencyData(freqData);
+      const slot = w / EQ_BANDS;
+      ctx.globalAlpha = wf ? 0.17 : 1;
+      for (let i = 0; i < EQ_BANDS; i++) {
+        const a = bandEdges[i];
+        const b = Math.max(a + 1, bandEdges[i + 1]);
+        let m = 0;
+        for (let k = a; k < b && k < freqData.length; k++) if (freqData[k] > m) m = freqData[k];
+        const v = (m / 255) ** 1.8; // a steeper curve keeps loud, dense music from filling every bar
+        peaks[i] = Math.max(v, peaks[i] - 0.012); // caps fall slowly
+        const bh = Math.max(2, Math.round(v * maxH));
+        const x = i * slot + 1;
+        const bw = Math.max(2, slot - 2);
+        ctx.fillStyle = v > 0.45 ? COL.blue : COL.dim;
+        ctx.fillRect(x, cy - bh / 2, bw, bh);
+        const ph = Math.max(2, peaks[i] * maxH);
+        ctx.fillStyle = COL.orange;
+        ctx.fillRect(x, cy - ph / 2 - 2, bw, 2);
+        ctx.fillRect(x, cy + ph / 2, bw, 2);
+      }
+      ctx.globalAlpha = 1;
     }
-    if (audio && audio.duration > 0) {
+    const t = curTime();
+    const d = dur();
+    if (wf) {
+      const half = maxH / 2;
+      const cx = Math.round(w / 2);
+      const n = wf.a.length;
+      const col = (x) => {
+        const t0 = t + ((x - w / 2) / w) * WIN;
+        if (t0 < 0) return -1;
+        const i0 = Math.floor(t0 * wf.per);
+        if (i0 >= n) return -1;
+        const i1 = Math.min(n - 1, Math.max(i0, Math.floor((t0 + WIN / w) * wf.per)));
+        let m = 0;
+        for (let k = i0; k <= i1; k++) if (wf.a[k] > m) m = wf.a[k];
+        return m;
+      };
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.fillStyle = pass === 0 ? COL.blue : COL.dim; // played part bright, upcoming dimmer
+        const x0 = pass === 0 ? 0 : cx;
+        const x1 = pass === 0 ? cx : Math.floor(w);
+        for (let x = x0; x < x1; x++) {
+          const m = col(x);
+          if (m < 0) continue;
+          const amp = Math.max(1, (m / 255) ** 0.8 * half);
+          ctx.fillRect(x, cy - amp, 1, amp * 2);
+        }
+      }
       ctx.fillStyle = COL.orange;
-      ctx.fillRect(0, h - 2, Math.min(w, (audio.currentTime / audio.duration) * w), 2);
+      ctx.fillRect(cx - 1, 0, 2, h);
+    } else if (d > 0) {
+      const px = clamp((t / d) * w, 0, w);
+      ctx.fillStyle = COL.orange;
+      ctx.fillRect(0, h - 2, px, 2);
+      ctx.fillRect(clamp(px - 1, 0, w - 2), 0, 2, h);
     }
+  }
+
+  // whole-track strip: peaks squeezed to the strip width; also the scrubber
+  function drawMiniPlay(ctx, w, h) {
+    const frac = playFrac();
+    const px = frac * w;
+    const head = $('ovHead');
+    head.hidden = false;
+    head.style.left = `${(frac * 100).toFixed(2)}%`;
+    if (!wf) {
+      const slot = w / MINI_BARS;
+      for (let i = 0; i < MINI_BARS; i++) {
+        const bh = Math.round(4 + shape(i * 1.25) * 22);
+        ctx.globalAlpha = i * slot < px ? 0.95 : 0.3;
+        ctx.fillStyle = COL.blue;
+        ctx.fillRect(i * slot, h - bh, Math.max(1, slot - 1), bh);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (!miniCache || miniCache.w !== w || miniCache.src !== wf) {
+      const n = wf.a.length;
+      const cols = new Uint8Array(w);
+      for (let x = 0; x < w; x++) {
+        const i0 = Math.min(n - 1, Math.floor((x / w) * n));
+        const i1 = Math.max(i0, Math.floor(((x + 1) / w) * n) - 1);
+        let m = 0;
+        for (let k = i0; k <= i1; k++) if (wf.a[k] > m) m = wf.a[k];
+        cols[x] = m;
+      }
+      miniCache = { w, src: wf, cols };
+    }
+    const cy = h / 2;
+    ctx.fillStyle = COL.blue;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.globalAlpha = pass === 0 ? 0.95 : 0.4;
+      const x0 = pass === 0 ? 0 : Math.ceil(px);
+      const x1 = pass === 0 ? Math.min(w, Math.ceil(px)) : w;
+      for (let x = x0; x < x1; x++) {
+        const amp = Math.max(1, (miniCache.cols[x] / 255) ** 0.8 * (cy - 1));
+        ctx.fillRect(x, cy - amp, 1, amp * 2);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   function setProgress(index, total) {
@@ -920,16 +1170,93 @@
     });
     $('log').addEventListener('click', (e) => {
       const row = e.target.closest('.row-log[data-play]');
-      if (row && $('log').contains(row)) togglePlay(row);
+      if (row && $('log').contains(row)) {
+        const b = e.target.closest('button');
+        if (b) b.blur(); // so Space means pause, not "press this button again"
+        togglePlay(row);
+      }
     });
     $('playStop').addEventListener('click', () => stopPlayback());
-    $('wave').addEventListener('click', (e) => {
-      if (playState !== 'playing' || !audio || !(audio.duration > 0)) return;
-      const rect = $('wave').getBoundingClientRect();
-      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-      audio.currentTime = frac * audio.duration;
-      updateTime();
+    $('playPause').addEventListener('click', () => togglePause());
+    setVolume(volume, false);
+    setTempo(0);
+    $('vol').addEventListener('input', () => setVolume(Number($('vol').value), true));
+    $('tempo').addEventListener('input', () => setTempo(Number($('tempo').value)));
+    $('tempo').addEventListener('dblclick', () => setTempo(0));
+    // skim strip: click or drag to seek
+    const ovFrac = (e) => { const r = $('mini').getBoundingClientRect(); return clamp((e.clientX - r.left) / (r.width || 1), 0, 1); };
+    const ovShow = (e) => {
+      const r = $('mini').getBoundingClientRect();
+      const frac = ovFrac(e);
+      const tip = $('ovTip');
+      tip.hidden = false;
+      tip.textContent = fmtTime(frac * dur());
+      tip.style.left = `${clamp(frac * r.width, 20, Math.max(20, r.width - 20))}px`;
+    };
+    const ov = $('overview');
+    ov.addEventListener('pointerdown', (e) => {
+      if (playState !== 'playing' || !(dur() > 0) || e.button !== 0) return;
+      ovDrag = true;
+      try { ov.setPointerCapture(e.pointerId); } catch (err) { /* seek still works */ }
+      seekTo(ovFrac(e) * dur());
+      ovShow(e);
     });
+    ov.addEventListener('pointermove', (e) => {
+      if (playState !== 'playing') return;
+      ovShow(e);
+      if (ovDrag) seekTo(ovFrac(e) * dur());
+    });
+    const ovEnd = (e) => {
+      if (!ovDrag) return;
+      ovDrag = false;
+      try { ov.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    };
+    ov.addEventListener('pointerup', ovEnd);
+    ov.addEventListener('pointercancel', ovEnd);
+    ov.addEventListener('pointerleave', () => { if (!ovDrag) $('ovTip').hidden = true; });
+    // big canvas: click jumps relative to the centre line, drag scrubs like a platter
+    let wdown = null;
+    const wave = $('wave');
+    wave.addEventListener('pointerdown', (e) => {
+      if (playState !== 'playing' || !(dur() > 0) || e.button !== 0) return;
+      const r = wave.getBoundingClientRect();
+      wdown = { x: e.clientX, t: audio.currentTime, w: r.width || 1, l: r.left, moved: false };
+      try { wave.setPointerCapture(e.pointerId); } catch (err) { /* seek still works */ }
+      if (!wf) seekTo(clamp((e.clientX - r.left) / wdown.w, 0, 1) * dur());
+    });
+    wave.addEventListener('pointermove', (e) => {
+      if (!wdown) return;
+      const dx = e.clientX - wdown.x;
+      if (Math.abs(dx) > 3) wdown.moved = true;
+      if (!wf) seekTo(clamp((e.clientX - wdown.l) / wdown.w, 0, 1) * dur());
+      else if (wdown.moved) seekTo(wdown.t - (dx / wdown.w) * WIN);
+    });
+    wave.addEventListener('pointerup', (e) => {
+      if (wdown && wf && !wdown.moved) seekTo(wdown.t + ((e.clientX - wdown.l) / wdown.w - 0.5) * WIN);
+      wdown = null;
+    });
+    wave.addEventListener('pointercancel', () => { wdown = null; });
+    // keys while a track is loaded: Space pause, Left/Right seek 5 s, Up/Down volume
+    const keyOk = (e) => {
+      if (playState !== 'playing' || !audio || $('panel').hidden === false || $('firstRun').open) return false;
+      if (e.ctrlKey || e.altKey || e.metaKey) return false;
+      const t = e.target;
+      const tag = t && t.tagName;
+      if (tag === 'SELECT' || tag === 'TEXTAREA') return false;
+      if (tag === 'INPUT' && t.type !== 'range') return false;
+      if (tag === 'INPUT' && e.key.startsWith('Arrow')) return false; // a focused slider keeps its own arrow keys
+      return true;
+    };
+    document.addEventListener('keydown', (e) => {
+      if (!keyOk(e)) return;
+      if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) togglePause(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(audio.currentTime - 5); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(audio.currentTime + 5); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setVolume(volume + 5, true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setVolume(volume - 5, true); }
+    });
+    // a focused button would also "click" on Space release: keep that from stopping the track
+    document.addEventListener('keyup', (e) => { if ((e.key === ' ' || e.code === 'Space') && keyOk(e)) e.preventDefault(); });
     window.addEventListener('beforeunload', () => { try { window.tc.playStop(); } catch (err) { /* closing anyway */ } });
     $('stop').addEventListener('click', () => { $('status').textContent = 'Stopping...'; window.tc.stop(); });
     $('openOut').addEventListener('click', () => window.tc.openFolder('out'));

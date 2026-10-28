@@ -58,7 +58,7 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 - **Save report (optional):** a CSV report with each file's status, notes, flags and peak after every run.
 
 **The app**
-- **Playback preview (optional, on by default):** click a converted track in the list to hear it, with live EQ bars on the screen. It plays a temporary copy decoded by ffmpeg (deleted when you stop or quit); your files are never changed.
+- **Playback preview (optional, on by default):** click a converted track in the list to hear it (a skipped duplicate plays the converted copy it matched). A scrolling waveform, skim bar, live EQ and level meter, pause, volume and a +/-8% tempo fader, plus a spinning platter that shows the track's cover art. It plays a temporary copy decoded by ffmpeg (deleted when you stop or quit); your files are never changed.
 - **Built like DJ gear:** a CDJ-style screen with a live waveform while it converts, a round progress platter,
   lit format pads, and a track list with colour flags (red clipping, orange duplicate, pink quality, teal health,
   violet player).

@@ -55,7 +55,7 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
 
   const rm = (f) => { try { fs.rmSync(f, { force: true }); } catch { /* best effort */ } };
   const clearCurrent = () => {
-    if (current) rm(current.file);
+    if (current) { rm(current.file); if (current.art) rm(current.art); }
     current = null;
   };
   const cancelRunning = () => {
@@ -109,15 +109,40 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
       const detail = (r.stderr || '').trim().split(/\r?\n/).pop() || 'unknown error';
       return { ok: false, error: `Could not decode that track: ${detail}` };
     }
+    // Waveform and cover art are extras: either failing just means no waveform / no art.
+    const artFile = path.join(tempRoot, `art-${n}.jpg`);
+    const cleanup = () => { rm(out); rm(artFile); };
+    ctrl = c;
+    let wf = { peaks: new Uint8Array(0), perSec: 100, duration: 0 };
+    let hasArt = false;
+    try {
+      wf = await waveformPeaks(out);
+      if (mine !== gen) { cleanup(); return { ok: false, cancelled: true }; }
+      const ar = await run(ffmpegExe, ['-nostdin', '-v', 'error', '-i', srcFile, '-an', '-map', '0:v:0', '-frames:v', '1', '-vf', 'scale=420:420:force_original_aspect_ratio=decrease', '-y', artFile], { signal: c.signal });
+      if (mine !== gen || ar.aborted) { cleanup(); return { ok: false, cancelled: true }; }
+      let asz = 0;
+      try { asz = fs.statSync(artFile).size; } catch { /* no art */ }
+      if (ar.code === 0 && asz > 0) hasArt = true; else rm(artFile);
+    } catch {
+      rm(artFile);
+    }
+    if (mine !== gen) { cleanup(); return { ok: false, cancelled: true }; }
+    ctrl = null;
     const token = crypto.randomBytes(12).toString('hex');
-    current = { token, file: out };
-    return { ok: true, token };
+    current = { token, file: out, art: hasArt ? artFile : null };
+    return { ok: true, token, peaks: wf.peaks, perSec: wf.perSec, duration: wf.duration, hasArt };
   }
 
   function resolveToken(token) {
     if (!current || typeof token !== 'string' || token !== current.token) return null;
     if (!tempRoot || !insideRoot(tempRoot, current.file)) return null;
     return current.file;
+  }
+
+  function resolveArt(token) {
+    if (!current || !current.art || typeof token !== 'string' || token !== current.token) return null;
+    if (!tempRoot || !insideRoot(tempRoot, current.art)) return null;
+    return current.art;
   }
 
   function stop() {
@@ -133,7 +158,7 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     }
   }
 
-  return { reserve, prepare, resolveToken, stop, dispose, get tempRoot() { return tempRoot; } };
+  return { reserve, prepare, resolveToken, resolveArt, stop, dispose, get tempRoot() { return tempRoot; } };
 }
 
 // The folder name carries the process id of the copy that made it; a running copy (even a suspended one) keeps it.
@@ -157,13 +182,86 @@ function sweepStale(tempBase = os.tmpdir(), maxAgeMs = 24 * 60 * 60 * 1000) {
 }
 
 // Decides what the tcplay:// handler serves. Pure: the caller does the file reading.
-function serveDecision(url, resolveToken) {
+function serveDecision(url, resolveToken, resolveArt) {
   if (typeof url !== 'string') return { ok: false, status: 403 };
-  const m = /^tcplay:\/\/track\/([0-9a-f]{24})$/.exec(url);
+  const m = /^tcplay:\/\/(track|art)\/([0-9a-f]{24})$/.exec(url);
   if (!m) return { ok: false, status: 403 };
+  const isArt = m[1] === 'art';
+  const resolver = isArt ? resolveArt : resolveToken;
   let file = null;
-  try { file = resolveToken(m[1]); } catch { file = null; }
-  return file ? { ok: true, file } : { ok: false, status: 404 };
+  try { file = typeof resolver === 'function' ? resolver(m[2]) : null; } catch { file = null; }
+  return file ? { ok: true, file, kind: isArt ? 'image' : 'audio' } : { ok: false, status: 404 };
+}
+
+const MAX_PEAKS = 100 * 60 * 60;
+
+// Per-bin max |sample| (0..255) of a 16-bit PCM WAV, read as a stream. Never throws.
+async function waveformPeaks(wavFile, perSec = 100) {
+  const empty = () => ({ peaks: new Uint8Array(0), perSec, duration: 0 });
+  let fh;
+  try {
+    if (!(perSec > 0)) return empty();
+    fh = await fs.promises.open(wavFile, 'r');
+    const fileSize = (await fh.stat()).size;
+    // Walk the RIFF chunks for fmt and data.
+    const head = Buffer.alloc(12);
+    if ((await fh.read(head, 0, 12, 0)).bytesRead < 12) return empty();
+    if (head.toString('latin1', 0, 4) !== 'RIFF' || head.toString('latin1', 8, 12) !== 'WAVE') return empty();
+    let pos = 12;
+    let channels = 0; let bits = 0; let rate = 0; let fmtTag = 0;
+    let dataStart = -1; let dataLen = 0;
+    const ch = Buffer.alloc(8);
+    while (pos + 8 <= fileSize) {
+      if ((await fh.read(ch, 0, 8, pos)).bytesRead < 8) break;
+      const id = ch.toString('latin1', 0, 4);
+      const len = ch.readUInt32LE(4);
+      if (id === 'fmt ') {
+        const f = Buffer.alloc(16);
+        if ((await fh.read(f, 0, 16, pos + 8)).bytesRead < 16) return empty();
+        fmtTag = f.readUInt16LE(0); channels = f.readUInt16LE(2); rate = f.readUInt32LE(4); bits = f.readUInt16LE(14);
+      } else if (id === 'data') {
+        dataStart = pos + 8;
+        dataLen = len;
+        break;
+      }
+      pos += 8 + len + (len & 1);
+    }
+    if (dataStart < 0 || !channels || !rate || bits !== 16 || (fmtTag !== 1 && fmtTag !== 0xFFFE)) return empty();
+    const avail = fileSize - dataStart;
+    if (dataLen === 0 || dataLen === 0xFFFFFFFF || dataLen > avail) dataLen = avail;
+    const frameBytes = channels * 2;
+    const totalFrames = Math.floor(dataLen / frameBytes);
+    if (totalFrames <= 0) return empty();
+    const binFrames = Math.max(1, Math.round(rate / perSec));
+    const bins = Math.min(MAX_PEAKS, Math.ceil(totalFrames / binFrames));
+    const peaks = new Uint8Array(bins);
+    const maxArr = new Int32Array(bins);
+    const CHUNK = 1024 * 1024 - ((1024 * 1024) % frameBytes);
+    let frame = 0; // global frame index
+    let carry = Buffer.alloc(0);
+    const end = dataStart + totalFrames * frameBytes - 1;
+    const stream = fs.createReadStream(wavFile, { start: dataStart, end, highWaterMark: CHUNK });
+    for await (let buf of stream) {
+      if (carry.length) { buf = Buffer.concat([carry, buf]); carry = Buffer.alloc(0); }
+      const whole = buf.length - (buf.length % frameBytes);
+      if (whole < buf.length) carry = Buffer.from(buf.subarray(whole));
+      const samples = whole / 2;
+      for (let i = 0; i < samples; i++) {
+        const bin = Math.floor((frame + Math.floor(i / channels)) / binFrames);
+        if (bin >= bins) break;
+        let v = buf.readInt16LE(i * 2);
+        if (v < 0) v = -v;
+        if (v > maxArr[bin]) maxArr[bin] = v;
+      }
+      frame += whole / frameBytes;
+    }
+    for (let b = 0; b < bins; b++) peaks[b] = Math.min(255, Math.max(0, Math.round(maxArr[b] / 32768 * 255)));
+    return { peaks, perSec, duration: totalFrames / rate };
+  } catch {
+    return empty();
+  } finally {
+    if (fh) { try { await fh.close(); } catch { /* ignore */ } }
+  }
 }
 
 // What to send for a (possibly ranged) request of a file of `size` bytes: a known length and byte ranges let the
@@ -187,4 +285,4 @@ function rangeFor(size, header) {
   return { status: 206, start, end };
 }
 
-module.exports = { rangeFor, AUDIO_EXTS, insideRoot, resolvePlayable, createPlayer, sweepStale, serveDecision, MAX_WAV_BYTES };
+module.exports = { rangeFor, AUDIO_EXTS, insideRoot, resolvePlayable, createPlayer, sweepStale, serveDecision, waveformPeaks, MAX_WAV_BYTES };

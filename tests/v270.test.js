@@ -81,7 +81,7 @@ test('insideRoot: junction/symlink escape, prefix sibling, case', (t) => {
 test('serveDecision: only a known 24-hex token on host "track"', () => {
   const tok = 'a1b2c3d4e5f60718293a4b5c';
   const resolve = (t) => (t === tok ? 'C:\\tmp\\x.wav' : null);
-  assert.deepEqual(pb.serveDecision(`tcplay://track/${tok}`, resolve), { ok: true, file: 'C:\\tmp\\x.wav' });
+  assert.deepEqual(pb.serveDecision(`tcplay://track/${tok}`, resolve), { ok: true, file: 'C:\\tmp\\x.wav', kind: 'audio' });
   assert.equal(pb.serveDecision(`tcplay://other/${tok}`, resolve).status, 403);
   assert.equal(pb.serveDecision('tcplay://track/abc', resolve).status, 403);
   assert.equal(pb.serveDecision(`tcplay://track/${tok}00`, resolve).status, 403);
@@ -150,6 +150,101 @@ test('createPlayer: a garbage file fails and leaves no file', { skip }, async ()
   p.dispose();
 });
 
+test('serveDecision: art URL serves an image, strict host and token', () => {
+  const tok = 'a1b2c3d4e5f60718293a4b5c';
+  const track = (t) => (t === tok ? 'C:\\tmp\\x.wav' : null);
+  const art = (t) => (t === tok ? 'C:\\tmp\\art.jpg' : null);
+  assert.deepEqual(pb.serveDecision(`tcplay://art/${tok}`, track, art), { ok: true, file: 'C:\\tmp\\art.jpg', kind: 'image' });
+  assert.equal(pb.serveDecision(`tcplay://cover/${tok}`, track, art).status, 403);
+  assert.equal(pb.serveDecision(`tcplay://art/${tok}?x=1`, track, art).status, 403);
+  assert.equal(pb.serveDecision('tcplay://art/ffffffffffffffffffffffff', track, art).status, 404);
+  assert.equal(pb.serveDecision(`tcplay://art/${tok}`, track).status, 404);
+  assert.equal(pb.serveDecision(`tcplay://track/${tok}`, track, art).kind, 'audio');
+});
+
+function wavBuf(frames, rate, withList) {
+  const data = Buffer.alloc(frames * 4); // stereo 16-bit
+  for (let i = 0; i < frames; i++) { data.writeInt16LE(i < frames / 2 ? 16384 : 0, i * 4); data.writeInt16LE(i < frames / 2 ? -8000 : 0, i * 4 + 2); }
+  const fmt = Buffer.alloc(24);
+  fmt.write('fmt ', 0, 'latin1'); fmt.writeUInt32LE(16, 4); fmt.writeUInt16LE(1, 8); fmt.writeUInt16LE(2, 10);
+  fmt.writeUInt32LE(rate, 12); fmt.writeUInt32LE(rate * 4, 16); fmt.writeUInt16LE(4, 20); fmt.writeUInt16LE(16, 22);
+  const parts = [fmt];
+  if (withList) { const l = Buffer.alloc(8 + 5 + 1); l.write('LIST', 0, 'latin1'); l.writeUInt32LE(5, 4); l.write('abcde', 8, 'latin1'); parts.push(l); } // odd length + pad
+  const dh = Buffer.alloc(8); dh.write('data', 0, 'latin1'); dh.writeUInt32LE(data.length, 4);
+  parts.push(dh, data);
+  const body = Buffer.concat(parts);
+  const riff = Buffer.alloc(12); riff.write('RIFF', 0, 'latin1'); riff.writeUInt32LE(body.length + 4, 4); riff.write('WAVE', 8, 'latin1');
+  return Buffer.concat([riff, body]);
+}
+
+test('waveformPeaks: header walker handles a LIST chunk; bad files give empty', async () => {
+  const d = fresh('wf');
+  for (const withList of [false, true]) {
+    const f = path.join(d, `h${withList}.wav`);
+    fs.writeFileSync(f, wavBuf(8000, 8000, withList)); // 1 s
+    const r = await pb.waveformPeaks(f);
+    assert.ok(Math.abs(r.duration - 1) < 0.001);
+    assert.ok(Math.abs(r.peaks.length - 100) <= 2);
+    assert.equal(r.peaks[10], Math.round(16384 / 32768 * 255));
+    assert.equal(r.peaks[90], 0);
+  }
+  const bad = path.join(d, 'bad.wav');
+  fs.writeFileSync(bad, 'not a wav file at all');
+  const rb = await pb.waveformPeaks(bad);
+  assert.equal(rb.peaks.length, 0);
+  assert.equal(rb.duration, 0);
+  const rm = await pb.waveformPeaks(path.join(d, 'missing.wav'));
+  assert.equal(rm.peaks.length, 0);
+});
+
+test('waveformPeaks: real decoded sine with a quiet second half', { skip }, async () => {
+  const d = fresh('wf2');
+  const f = path.join(d, 's.wav');
+  const r0 = spawnSync(tools.ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-af', "volume=0.05:enable='gte(t,1)'", '-ac', '2', '-c:a', 'pcm_s16le', f], { encoding: 'utf8' });
+  assert.equal(r0.status, 0, r0.stderr);
+  const r = await pb.waveformPeaks(f);
+  assert.ok(Math.abs(r.duration - 2) < 0.05, String(r.duration));
+  assert.ok(Math.abs(r.peaks.length - r.duration * 100) <= 2);
+  const max = (a, b) => Math.max(...r.peaks.subarray(a, b));
+  assert.ok(max(10, 90) > 3 * max(110, 190), `${max(10, 90)} vs ${max(110, 190)}`);
+});
+
+function makeArtMp3(dir, withArt) {
+  const mp3 = path.join(dir, withArt ? 'art.mp3' : 'plain.mp3');
+  if (!withArt) {
+    const r = spawnSync(tools.ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', mp3], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return mp3;
+  }
+  const jpg = path.join(dir, 'c.jpg');
+  let r = spawnSync(tools.ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=red:s=64x64', '-frames:v', '1', jpg], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  r = spawnSync(tools.ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-i', jpg, '-map', '0', '-map', '1', '-c:a', 'libmp3lame', '-c:v', 'copy', '-disposition:v', 'attached_pic', mp3], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return mp3;
+}
+
+test('createPlayer: cover art extracted into the temp folder and removed on stop; none without art', { skip }, async () => {
+  const d = fresh('art');
+  const p = pb.createPlayer({ tempBase: fresh('tempbase') });
+  const r = await p.prepare(tools.ffmpeg, makeArtMp3(d, true));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.hasArt, true);
+  assert.ok(r.peaks.length > 80 && r.duration > 0.5 && r.perSec === 100);
+  const art = p.resolveArt(r.token);
+  assert.ok(art && pb.insideRoot(p.tempRoot, art) && fs.statSync(art).size > 0);
+  assert.equal(p.resolveArt('ffffffffffffffffffffffff'), null);
+  p.stop();
+  assert.equal(fs.existsSync(art), false);
+  assert.equal(p.resolveArt(r.token), null);
+  const r2 = await p.prepare(tools.ffmpeg, makeArtMp3(d, false));
+  assert.equal(r2.ok, true, r2.error);
+  assert.equal(r2.hasArt, false);
+  assert.equal(p.resolveArt(r2.token), null);
+  assert.equal(fs.readdirSync(p.tempRoot).length, 1);
+  p.dispose();
+});
+
 test('sweepStale: removes old play folders only', () => {
   const base = fresh('sweep');
   const old = path.join(base, 'tunes-converter-play-2147483000-old');
@@ -203,4 +298,25 @@ test('createPlayer: an older reserved request cannot cancel a newer one, and sto
   p.stop();
   assert.equal((await p.prepare(tools.ffmpeg, src, t)).cancelled, true);
   p.dispose();
+});
+test('batch: a skipped duplicate or an existing file names the converted copy to play', { skip }, async () => {
+  const { runBatch } = require('../src/engine/batch');
+  const inDir = fresh('dupin');
+  for (const f of ['a.flac', 'b.flac']) {
+    const r = spawnSync(tools.ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-metadata', 'artist=A', '-metadata', 'title=Same', path.join(inDir, f)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+  }
+  const out = fresh('dupout');
+  const opts = { ...settings.defaults(tmp), QualityCheck: 'off', HealthCheck: false, DuplicateMode: 'skip', FolderTemplate: '{artist}' };
+  const events = [];
+  await runBatch({ inDir, outDir: out, settings: opts, tools, signal: new AbortController().signal, onEvent: (e) => events.push(e) });
+  const res = events.filter((e) => e.type === 'result');
+  const skipped = res.find((e) => e.status === 'SKIP');
+  assert.ok(skipped);
+  assert.equal(skipped.play, path.join('A', 'A - Same.mp3'));
+  assert.ok(fs.existsSync(path.join(out, skipped.play)));
+  // a second run: the files already exist, each row names its existing output
+  const again = [];
+  await runBatch({ inDir, outDir: out, settings: { ...opts, DuplicateMode: 'off' }, tools, signal: new AbortController().signal, onEvent: (e) => again.push(e) });
+  for (const e of again.filter((x) => x.type === 'result' && x.status === 'SKIP')) assert.ok(fs.existsSync(path.join(out, e.play)), e.play);
 });

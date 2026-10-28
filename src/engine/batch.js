@@ -198,7 +198,9 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
     if (res.duplicate) counts.DUPLICATE += 1;
     if (res.health) counts.HEALTH += 1;
     if (res.player) counts.PLAYER += 1;
-    onEvent({ type: 'result', status: res.status, name: rel ? path.join(rel, res.name) : res.name, note: res.note, health: Boolean(res.health), player: Boolean(res.player),duplicate: Boolean(res.duplicate), peak: typeof res.peakDb === 'number' ? res.peakDb : null });
+    // A skipped file still has a converted copy in the output folder (the one it duplicates, or the one that was already there): `play` names it.
+    const play = res.twinFile && isInside(primary.root, res.twinFile) ? path.relative(primary.root, res.twinFile) : '';
+    onEvent({ type: 'result', status: res.status, name: rel ? path.join(rel, res.name) : res.name, play, note: res.note, health: Boolean(res.health), player: Boolean(res.player),duplicate: Boolean(res.duplicate), peak: typeof res.peakDb === 'number' ? res.peakDb : null });
     // The second copy follows the primary one; a failed or stopped primary file is not repeated.
     if (second && ['OK', 'WARN', 'SKIP'].includes(res.status)) {
       const r2 = await convertInLane(second, files[i], { tools, signal, onStatus: (text) => onStatus(`Second copy - ${text}`) });
