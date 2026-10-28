@@ -10,7 +10,9 @@ const { run } = require('./proc');
 const AUDIO_EXTS = ['.mp3', '.m4a', '.flac', '.wav', '.aiff', '.aif', '.opus'];
 const MAX_WAV_BYTES = 1.5 * 1024 * 1024 * 1024;
 const TEMP_PREFIX = 'tunes-converter-play-';
-const FOLD = process.platform === 'win32' || process.platform === 'darwin';
+// Only Windows is folded: realpath already returns the on-disk case, and on a case-sensitive Mac volume two folders
+// that differ only in case are different folders.
+const FOLD = process.platform === 'win32';
 
 const real = (p) => fs.realpathSync.native(p);
 
@@ -62,10 +64,18 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     ctrl = null;
   };
 
-  async function prepare(ffmpegExe, srcFile) {
+  // Claims "the newest request" synchronously, before the caller awaits anything, so an older request that finishes
+  // its setup later cannot cancel a newer one, and a stop() in between voids the claim.
+  function reserve() {
     cancelRunning();
     clearCurrent();
-    const mine = gen;
+    return gen;
+  }
+
+  async function prepare(ffmpegExe, srcFile, ticket) {
+    if (ticket === undefined) ticket = reserve();
+    else if (ticket !== gen) return { ok: false, cancelled: true };
+    const mine = ticket;
     const c = new AbortController();
     ctrl = c;
     let out;
@@ -93,6 +103,7 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     if (r.aborted) { rm(out); return { ok: false, cancelled: true }; }
     let size = 0;
     try { size = fs.statSync(out).size; } catch { /* missing */ }
+    if (size > MAX_WAV_BYTES) { rm(out); return { ok: false, error: 'That track is too long to preview.' }; }
     if (r.code !== 0 || size < 44) {
       rm(out);
       const detail = (r.stderr || '').trim().split(/\r?\n/).pop() || 'unknown error';
@@ -122,7 +133,14 @@ function createPlayer({ tempBase = os.tmpdir() } = {}) {
     }
   }
 
-  return { prepare, resolveToken, stop, dispose, get tempRoot() { return tempRoot; } };
+  return { reserve, prepare, resolveToken, stop, dispose, get tempRoot() { return tempRoot; } };
+}
+
+// The folder name carries the process id of the copy that made it; a running copy (even a suspended one) keeps it.
+function ownerAlive(name) {
+  const m = new RegExp(`^${TEMP_PREFIX}(\\d+)-`).exec(name);
+  if (!m) return false;
+  try { process.kill(Number(m[1]), 0); return true; } catch (err) { return err.code === 'EPERM'; }
 }
 
 // Removes temp folders left by crashed runs. Folders newer than maxAgeMs may belong to another running copy.
@@ -132,7 +150,7 @@ function sweepStale(tempBase = os.tmpdir(), maxAgeMs = 24 * 60 * 60 * 1000) {
       if (!e.isDirectory() || !e.name.startsWith(TEMP_PREFIX)) continue;
       try {
         const dir = path.join(tempBase, e.name);
-        if (Date.now() - fs.statSync(dir).mtimeMs > maxAgeMs) fs.rmSync(dir, { recursive: true, force: true });
+        if (Date.now() - fs.statSync(dir).mtimeMs > maxAgeMs && !ownerAlive(e.name)) fs.rmSync(dir, { recursive: true, force: true });
       } catch { /* skip this one */ }
     }
   } catch { /* nothing to sweep */ }

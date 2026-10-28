@@ -195,13 +195,14 @@ async function tcplayHandler(request) {
 function registerIpc() {
   ipcMain.handle('play:prepare', async (event, name) => {
     if (!trusted(event)) return { ok: false };
+    const ticket = getPlayer().reserve(); // before any await: the newest click wins, and Stop voids it
     const s = current();
     if (!s.PlayPreview) return { ok: false, error: 'Playback preview is off (MENU).' };
     const t = (await toolState(s)).tools;
     if (!t) return { ok: false, error: 'ffmpeg not found.' };
     const src = playback.resolvePlayable(name, s.Out);
     if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
-    const r = await getPlayer().prepare(t.ffmpeg, src);
+    const r = await getPlayer().prepare(t.ffmpeg, src, ticket);
     return r.ok ? { ok: true, url: `tcplay://track/${r.token}` } : { ok: false, cancelled: r.cancelled, error: r.error };
   });
 

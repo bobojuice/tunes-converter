@@ -152,16 +152,20 @@ test('createPlayer: a garbage file fails and leaves no file', { skip }, async ()
 
 test('sweepStale: removes old play folders only', () => {
   const base = fresh('sweep');
-  const old = path.join(base, 'tunes-converter-play-1-old');
+  const old = path.join(base, 'tunes-converter-play-2147483000-old');
   const young = path.join(base, 'tunes-converter-play-2-new');
   const other = path.join(base, 'something-else');
   for (const d of [old, young, other]) fs.mkdirSync(d);
   const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
   fs.utimesSync(old, past, past);
   fs.utimesSync(other, past, past);
+  const mine = path.join(base, `tunes-converter-play-${process.pid}-live`);
+  fs.mkdirSync(mine);
+  fs.utimesSync(mine, past, past); // a copy that is still running keeps its folder, however old
   pb.sweepStale(base);
   assert.equal(fs.existsSync(old), false);
   assert.equal(fs.existsSync(young), true);
+  assert.equal(fs.existsSync(mine), true);
   assert.equal(fs.existsSync(other), true);
   assert.doesNotThrow(() => pb.sweepStale(path.join(base, 'does-not-exist')));
 });
@@ -182,4 +186,21 @@ test('rangeFor: whole file, ranges, suffix ranges, bad ranges', () => {
   assert.deepEqual(pb.rangeFor(1000, 'bytes=900-5000'), { status: 206, start: 900, end: 999 });
   assert.deepEqual(pb.rangeFor(1000, 'bytes=-100'), { status: 206, start: 900, end: 999 });
   for (const bad of ['bytes=1000-', 'bytes=5-2', 'bytes=-', 'bytes=-0', 'items=0-1', 'bytes=0-1,5-6', 'bytes=a-b']) assert.equal(pb.rangeFor(1000, bad).status, 416, bad);
+});
+
+test('createPlayer: an older reserved request cannot cancel a newer one, and stop voids a reservation', { skip }, async () => {
+  const d = fresh('ticket');
+  const src = path.join(d, 'a.wav');
+  tone(src);
+  const p = pb.createPlayer({ tempBase: d });
+  const older = p.reserve();
+  const newer = p.reserve();
+  const [a, b] = await Promise.all([p.prepare(tools.ffmpeg, src, older), p.prepare(tools.ffmpeg, src, newer)]);
+  assert.equal(a.ok, false);
+  assert.equal(a.cancelled, true);
+  assert.equal(b.ok, true);
+  const t = p.reserve();
+  p.stop();
+  assert.equal((await p.prepare(tools.ffmpeg, src, t)).cancelled, true);
+  p.dispose();
 });
