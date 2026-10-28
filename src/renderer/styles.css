@@ -362,15 +362,22 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   display: block; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
   background:
     conic-gradient(from 35deg, rgba(255, 255, 255, 0) 0 8%, rgba(255, 255, 255, 0.05) 14%, rgba(255, 255, 255, 0) 22% 55%, rgba(255, 255, 255, 0.04) 62%, rgba(255, 255, 255, 0) 70% 100%),
-    repeating-radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0 1px, rgba(255, 255, 255, 0.04) 1px 2px),
-    radial-gradient(circle closest-side, #181a1f 0 79%, #121317 90%, #0b0c0e 96%, #20232a 100%);
+    /* dark grey nub section outside, blacker vinyl inside, a faint defined edge between them at 76% of the radius */
+    radial-gradient(circle closest-side, #08090b 0 75.2%, rgba(255, 255, 255, 0.11) 75.6%, #030304 76.3%, #1d2025 77.2% 95%, #15171b 97.5%, #20232a 100%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 6px rgba(0, 0, 0, 0.6);
+}
+/* the fine vinyl texture lives only on the black vinyl, not on the nub section */
+.platter.cdj .cdj-vinyl::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0 1px, rgba(255, 255, 255, 0.04) 1px 2px);
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 74.5%, transparent 75.2%);
+  mask-image: radial-gradient(circle closest-side, #000 0 74.5%, transparent 75.2%);
 }
 .platter.cdj .deck-face, .platter.cdj .art { inset: 50px; border: 0; box-shadow: 0 0 0 1px #d4dae1, 0 0 0 2.5px #040405, 0 0 7px 3px rgba(0, 0, 0, 0.55); }
 .platter.cdj .cdj-pockets { display: block; position: absolute; inset: 0; pointer-events: none; }
 .platter.cdj .cdj-pockets i {
-  position: absolute; left: 50%; top: 21.5px; width: 14px; height: 9px; margin-left: -7px; border-radius: 50%; transform-origin: 7px 90.5px;
-  background: radial-gradient(ellipse at 50% 60%, #14161a 0, #131519 60%, #16181d 100%);
+  position: absolute; left: 50%; top: 12px; width: 14px; height: 9px; margin-left: -7px; border-radius: 50%; transform-origin: 7px 100px;
+  background: radial-gradient(ellipse at 50% 60%, #181b20 0, #1a1d22 60%, #1d2025 100%);
   box-shadow: inset 1px 2px 2px rgba(0, 0, 0, 0.5), inset -1px -1px 1px rgba(255, 255, 255, 0.06), 0 1px 0 0 rgba(255, 255, 255, 0.07);
 }
 /* clean chrome/dark bevel at the vinyl edge (static); a thin radial reference line on the black ring turns with the pockets */
