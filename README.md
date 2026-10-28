@@ -18,36 +18,54 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 
 ## ✨ What it does
 
+**Convert**
 - **Pick your format:** MP3 at 320 kbps by default (via ffmpeg/LAME), or **AAC (M4A), FLAC, WAV, AIFF or Opus**.
+  Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3.
 - **Made for DJs:** WAV, AIFF and FLAC come out at **16-bit** (the most compatible) or 24-bit. Sources stored as
-  **32-bit float** are converted down to the depth you choose, dithered at 16-bit.
-- **AIFF for Rekordbox and CDJs:** uncompressed like WAV, but it keeps tags and cover art, which WAV tags often lose.
-- **Presets:** save your settings under a name (e.g. "DJ USB: AIFF 16-bit") and load them with one click.
-- **Duplicate songs:** the same song in two files or formats is flagged in the log, or the extra copies are skipped.
-- **Clipping check (optional):** flags tracks with possible clipping or peaks above 0 dBFS.
-- **Copy, don't re-encode:** a file already in the chosen format keeps its audio untouched; only names, tags and cover are fixed.
-- **Health check:** flags mono-as-stereo, low sample rate and damaged files (flag only, nothing is changed). Oversized cover art is shrunk; normal art and the audio are never touched.
-- **Report and watch folder (optional):** save a CSV report after each run, or convert new files automatically as they arrive. Presets can be exported and imported.
-- **Folders and a second copy (optional):** sort output into Artist/Album folders from the tags, or write a second copy in another format and folder in the same run (e.g. AIFF library plus MP3 share).
-- **Player check (optional):** pick your CDJ/XDJ model and files it may not play are flagged (flag only, from Pioneer's published specs).
+  **32-bit float** are converted down to the depth you choose, dithered at 16-bit. AIFF keeps tags and cover art,
+  which WAV tags often lose, so it suits Rekordbox and CDJs.
+- **Copy, don't re-encode:** a file already in the chosen format (MP3, AAC, Opus, FLAC, WAV or AIFF) keeps its audio
+  untouched; only the name, tags and cover are fixed. For lossless formats the bit depth must match your setting.
+- **Presets:** save your settings under a name (e.g. "DJ USB: AIFF 16-bit"), load them with one click, and
+  export or import them as a file to share.
+- **Second copy (optional):** write every song in a second format and folder in the same run, for example an AIFF
+  library plus an MP3 share folder.
+
+**Names, tags and folders**
 - **Correct names:** files become `Artist - Title` by default. Tracks with several artists in separate tags
   (e.g. `ARTIST=Pola & Bryson` + `ARTIST=Cimone`) become `Pola & Bryson, Cimone - Title` instead of keeping only
   the last artist. Pick another pattern or write your own with `{artist}` `{title}` `{album}` `{albumartist}`
   `{track}` `{year}`.
+- **Folders by tags (optional):** sort the output into folders such as Artist/Album, Album Artist/Album or Genre
+  (or your own pattern). A missing tag becomes "Unknown Artist" and so on.
 - **Tag options:** keep all tags, keep only the main fields, or remove everything. Cover art stays unless you turn
-  it off; MP3 tags are written as ID3v2.3 (works with DJ software and car stereos).
+  it off; MP3 tags are written as ID3v2.3 (works with DJ software and car stereos). Oversized cover art
+  (over 1000 px or about 1 MB) is shrunk to 800 px; normal art is left exactly as it is.
+- **Original dates:** converted files keep the original file's modified date.
+
+**Checks (they only flag, nothing is changed)**
 - **Fake-quality check (optional):** measures where each file's audio *really* stops, not what its tag claims, and
   estimates its true quality. Warn about or skip files below a minimum you choose, such as a 128k MP3 passed off as
   320 or lossless. It is an estimate, not proof. [How it works](docs/HOWTO.md#quality-check-spot-fake-files).
+- **Health check:** flags mono-as-stereo, low sample rate and damaged or truncated files.
+- **Clipping check (optional):** flags tracks with possible clipping or peaks above 0 dBFS.
+- **Duplicate songs:** the same song in two files or formats is flagged in the log, or the extra copies are skipped.
+- **Player check (optional):** pick your CDJ/XDJ model and files it may not play (format, sample rate or bit depth)
+  are flagged, from Pioneer's published specs.
+
+**Automation and records**
+- **Watch folder (optional):** new music files that appear in the songs folder are converted automatically.
+- **Save report (optional):** a CSV report with each file's status, notes, flags and peak after every run.
+
+**The app**
 - **Built like DJ gear:** a CDJ-style screen with a live waveform while it converts, a round progress platter,
-  lit format pads, and a track list with flags for clipping, duplicates and low quality.
+  lit format pads, and a track list with colour flags (red clipping, orange duplicate, pink quality, teal health,
+  violet player).
 - **Easy to use:** drag and drop a folder or files, include sub-folders (the layout is copied), see the time left.
-- **Safe:** originals are never touched, output goes to a separate folder, and existing files are skipped so
-  reruns are harmless. MP3 sources are copied as they are when the output is MP3 (no re-encoding, tags still fixed).
+- **Safe:** the audio is never altered, originals are never touched, output goes to a separate folder, and existing
+  files are skipped so reruns are harmless.
 - **Private:** nothing is uploaded anywhere; everything runs locally. The optional *Check for updates* button only
   contacts GitHub when you click it.
-
-Reads FLAC, WAV, AIFF, M4A, OGG, Opus, WMA and MP3.
 
 ## 🚀 Install and use
 
@@ -67,7 +85,7 @@ Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshoo
 ## ⚙️ Menu and settings
 
 The main screen has the format pads, the bit-depth/bitrate knob and the option keys. Click **MENU** (top right) for every option, including presets: output format, bit depth, bitrate, sample rate, quality check and
-minimum, file names, tags, sub-folders, cover art, full artist names, and opening the output folder when finished.
+minimum, file names, folders by tags, second copy, duplicate songs, player check, tags, sub-folders, cover art, full artist names, clipping and health checks, copy mode, cover-art shrinking, original dates, saving a report, watching the songs folder, and opening the output folder when finished.
 The two folders and all options are saved automatically in `settings.json`. See
 [docs/HOWTO.md](docs/HOWTO.md#settings) for where it lives and what each value means.
 
