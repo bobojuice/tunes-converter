@@ -1,7 +1,15 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, screen, protocol } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
+const playback = require('./src/engine/playback');
+
+// Must run before the app is ready (and also when the test harness skips start()).
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'tcplay',
+  privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true }
+}]);
 const settings = require('./src/engine/settings');
 const { findTools, hasMp3Encoder } = require('./src/engine/tools');
 const { runBatch } = require('./src/engine/batch');
@@ -155,7 +163,52 @@ function syncWatcher() {
   });
 }
 
+// ---- playback preview: a decoded temp WAV, served only through tcplay://track/<token>; no music file is touched ----
+let player = null;
+const getPlayer = () => player || (player = playback.createPlayer());
+const disposePlayer = () => { if (player) player.dispose(); };
+
+async function tcplayHandler(request) {
+  const deny = (status) => new Response(null, { status });
+  try {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return deny(405);
+    const p = getPlayer();
+    const d = playback.serveDecision(request.url, (t) => p.resolveToken(t));
+    if (!d.ok) return deny(d.status);
+    if (!p.tempRoot || !playback.insideRoot(p.tempRoot, d.file)) return deny(404);
+    const size = fs.statSync(d.file).size;
+    const r = playback.rangeFor(size, request.headers.get('range'));
+    const headers = new Headers({
+      'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+    });
+    if (r.status === 416) { headers.set('Content-Range', `bytes */${size}`); return new Response(null, { status: 416, headers }); }
+    headers.set('Content-Length', String(r.end - r.start + 1));
+    if (r.status === 206) headers.set('Content-Range', `bytes ${r.start}-${r.end}/${size}`);
+    if (request.method === 'HEAD' || size === 0) return new Response(null, { status: r.status, headers });
+    const body = Readable.toWeb(fs.createReadStream(d.file, { start: r.start, end: r.end }));
+    return new Response(body, { status: r.status, headers });
+  } catch {
+    return deny(404);
+  }
+}
+
 function registerIpc() {
+  ipcMain.handle('play:prepare', async (event, name) => {
+    if (!trusted(event)) return { ok: false };
+    const s = current();
+    if (!s.PlayPreview) return { ok: false, error: 'Playback preview is off (MENU).' };
+    const t = (await toolState(s)).tools;
+    if (!t) return { ok: false, error: 'ffmpeg not found.' };
+    const src = playback.resolvePlayable(name, s.Out);
+    if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
+    const r = await getPlayer().prepare(t.ffmpeg, src);
+    return r.ok ? { ok: true, url: `tcplay://track/${r.token}` } : { ok: false, cancelled: r.cancelled, error: r.error };
+  });
+
+  ipcMain.handle('play:stop', (event) => {
+    if (trusted(event)) getPlayer().stop();
+  });
+
   ipcMain.handle('app:getState', async (event) => {
     if (!trusted(event)) return null;
     const s = current();
@@ -369,7 +422,7 @@ function createWindow() {
       settings.save(paths().settings, base(), { WinW: b.width, WinH: b.height });
     } catch { /* remembering the size is best effort */ }
   });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; disposePlayer(); });
   win.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   return win;
 }
@@ -386,10 +439,13 @@ function start() {
   app.on('window-all-closed', () => {
     stopWatcher();
     batchSlot.abort();
+    disposePlayer();
     app.quit();
   });
-  app.on('before-quit', stopWatcher);
+  app.on('before-quit', () => { stopWatcher(); disposePlayer(); });
+  playback.sweepStale();
   return app.whenReady().then(() => {
+    protocol.handle('tcplay', tcplayHandler);
     const w = createWindow();
     syncWatcher();
     app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

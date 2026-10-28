@@ -67,6 +67,7 @@
     renderControls();
     renderReadouts();
     renderMeter();
+    syncPlayable();
     drawAll();
   }
 
@@ -218,7 +219,7 @@
     $('start').disabled = value;
     $('start').textContent = ranOnce && !value ? 'AGAIN' : 'START';
     $('stop').disabled = !value && !downloading;
-    for (const el of document.querySelectorAll('#panel [data-key], #setName, #presetList, #presetName, #presetSave')) el.disabled = value;
+    for (const el of document.querySelectorAll('#panel [data-key]:not([data-key="PlayPreview"]), #setName, #presetList, #presetName, #presetSave')) el.disabled = value;
     $('presetDelete').disabled = value || !$('presetList').value;
     for (const id of ['browseIn', 'browseOut', 'inDir', 'outDir', 'knob', 'roQuality']) $(id).disabled = value;
     for (const el of document.querySelectorAll('#pads .pad, .opt')) el.disabled = value;
@@ -255,6 +256,7 @@
   }
 
   function drawWave() {
+    if (eqActive()) { drawEq(); return; }
     const f = fitCanvas($('wave'));
     if (!f) return;
     const { ctx, w, h } = f;
@@ -379,12 +381,27 @@
     d.textContent = text;
     addLine(d);
   }
-  function addResult({ status, name, note }) {
+  function addResult({ status, name, note, second }) {
     const row = document.createElement('div');
     row.className = 'row-log';
     const num = document.createElement('span');
     num.className = 'num';
-    num.textContent = pad2(resultCount);
+    const numText = document.createElement('span');
+    numText.textContent = pad2(resultCount);
+    num.appendChild(numText);
+    if (name && !second && (status === 'OK' || status === 'WARN')) {
+      row.dataset.play = name;
+      const btn = document.createElement('button');
+      btn.className = 'play';
+      btn.type = 'button';
+      btn.textContent = '▶';
+      btn.setAttribute('aria-label', `Play ${name}`);
+      btn.title = 'Play preview (never changes files)';
+      num.appendChild(btn);
+      const on = Boolean(settings().PlayPreview);
+      btn.hidden = !on;
+      row.classList.toggle('playable', on);
+    }
     const tag = document.createElement('span');
     tag.className = `tag ${status.toLowerCase()}`;
     tag.textContent = status;
@@ -401,6 +418,207 @@
     $('log').textContent = '';
     $('log').hidden = true;
     $('empty').hidden = false;
+    if (playRow && !$('log').contains(playRow)) stopPlayback();
+  }
+
+  // ---- playback preview (never changes files; the main process decodes to a temp file and serves it as tcplay://) ----
+  const EQ_BANDS = 32;
+  let audio = null;
+  let actx = null;
+  let analyser = null;
+  let freqData = null;
+  let bandEdges = null;
+  let peaks = new Float32Array(EQ_BANDS);
+  let playState = 'idle'; // idle | preparing | playing
+  let playRow = null;
+  let playReq = 0;
+  let eqRaf = 0;
+  let savedStatus = '';
+  let ourStatus = null;
+  let lastTime = '';
+
+  const eqActive = () => playState === 'playing' && Boolean(analyser);
+  const baseName = (n) => String(n).split(/[\\/]/).pop();
+  const fmtTime = (t) => (Number.isFinite(t) && t >= 0 ? `${Math.floor(t / 60)}:${pad2(Math.floor(t % 60))}` : '--:--');
+
+  function setPlayStatus(text) {
+    if (ourStatus === null) savedStatus = $('status').textContent;
+    ourStatus = text;
+    $('status').textContent = text;
+  }
+  function restoreStatus() {
+    // only when nothing else (a batch event) has changed the screen title since
+    if (ourStatus !== null && $('status').textContent === ourStatus) $('status').textContent = savedStatus;
+    ourStatus = null;
+  }
+  function setRowPlaying(row, on) {
+    if (!row) return;
+    row.classList.toggle('playing', on);
+    const btn = row.querySelector('.play');
+    if (!btn) return;
+    btn.textContent = on ? '■' : '▶';
+    const label = `${on ? 'Stop' : 'Play'} ${row.dataset.play}`;
+    btn.setAttribute('aria-label', label);
+  }
+  function syncPlayable() {
+    const on = Boolean(state && settings().PlayPreview);
+    for (const row of $('log').querySelectorAll('.row-log[data-play]')) {
+      row.classList.toggle('playable', on);
+      const btn = row.querySelector('.play');
+      if (btn) btn.hidden = !on;
+    }
+    if (!on && playState !== 'idle') stopPlayback();
+  }
+  function showTransport(on) {
+    $('transport').hidden = !on;
+    $('playStop').disabled = !on;
+    $('wave').classList.toggle('seekable', playState === 'playing');
+  }
+  function updateTime() {
+    const txt = `${fmtTime(audio.currentTime)} / ${fmtTime(audio.duration)}`;
+    if (txt !== lastTime) { lastTime = txt; $('playTime').textContent = txt; }
+  }
+
+  function ensureAudio() {
+    if (!audio) {
+      audio = new Audio();
+      audio.crossOrigin = 'anonymous';
+      audio.preload = 'auto';
+      audio.addEventListener('ended', () => { if (playState !== 'idle') stopPlayback(); });
+      audio.addEventListener('error', () => {
+        if (playState !== 'playing') return;
+        playFailed('Could not play this track.');
+      });
+    }
+    if (!actx) {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        actx = new Ctx();
+        const src = actx.createMediaElementSource(audio);
+        analyser = actx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -10;
+        analyser.smoothingTimeConstant = 0.8;
+        src.connect(analyser);
+        analyser.connect(actx.destination);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        const nyq = actx.sampleRate / 2;
+        const lo = 40;
+        const hi = Math.min(16000, nyq);
+        bandEdges = [];
+        for (let i = 0; i <= EQ_BANDS; i++) {
+          const f = lo * Math.pow(hi / lo, i / EQ_BANDS);
+          bandEdges.push(Math.min(freqData.length, Math.max(0, Math.round((f / nyq) * freqData.length))));
+        }
+      } catch (err) {
+        actx = null; // playback still works through the audio element, just without the live bars
+        analyser = null;
+      }
+    }
+    if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+  }
+
+  function playFailed(text) {
+    stopPlayback();
+    $('status').textContent = text;
+    addMessage(text, 'error');
+  }
+
+  function stopPlayback() {
+    playReq += 1;
+    const was = playState !== 'idle';
+    playState = 'idle';
+    if (eqRaf) { cancelAnimationFrame(eqRaf); eqRaf = 0; }
+    if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    setRowPlaying(playRow, false);
+    playRow = null;
+    peaks.fill(0);
+    lastTime = '';
+    showTransport(false);
+    restoreStatus();
+    if (was) window.tc.playStop().catch(() => {});
+    drawWave();
+  }
+
+  async function startPlayback(row) {
+    stopPlayback();
+    const req = ++playReq;
+    const name = row.dataset.play;
+    ensureAudio(); // inside the click: creates / resumes the AudioContext
+    playRow = row;
+    playState = 'preparing';
+    setRowPlaying(row, true);
+    $('playTime').textContent = '0:00 / --:--';
+    showTransport(true);
+    setPlayStatus(`Preparing ${baseName(name)}...`);
+    let r;
+    try { r = await window.tc.playPrepare(name); } catch (err) { r = { ok: false, error: err.message }; }
+    if (req !== playReq) { if (playState === 'idle') window.tc.playStop().catch(() => {}); return; } // stale answer
+    if (!r || !r.ok) { playFailed((r && r.error) || 'Could not prepare this track.'); return; }
+    try {
+      audio.src = r.url;
+      await audio.play();
+    } catch (err) {
+      if (req !== playReq) return;
+      playFailed(`Could not play ${baseName(name)}: ${err.message}`);
+      return;
+    }
+    if (req !== playReq) return;
+    playState = 'playing';
+    setPlayStatus(`▶ ${baseName(name)}`);
+    showTransport(true);
+    updateTime();
+    const loop = () => {
+      if (playState !== 'playing') { eqRaf = 0; return; }
+      updateTime();
+      if (analyser) drawEq();
+      eqRaf = requestAnimationFrame(loop);
+    };
+    eqRaf = requestAnimationFrame(loop);
+  }
+
+  function togglePlay(row) {
+    if (!settings().PlayPreview) return;
+    if (row === playRow && playState !== 'idle') stopPlayback();
+    else startPlayback(row);
+  }
+
+  function drawEq() {
+    const f = fitCanvas($('wave'));
+    if (!f) return;
+    const { ctx, w, h } = f;
+    for (let i = 0; i < 25; i++) {
+      ctx.fillStyle = i % 4 === 0 ? COL.red : '#6B8A92';
+      const x = Math.round((i / 24) * (w - 1));
+      ctx.fillRect(x, 0, 1, 6);
+      ctx.fillRect(x, h - 6, 1, 6);
+    }
+    analyser.getByteFrequencyData(freqData);
+    const slot = w / EQ_BANDS;
+    const cy = h / 2;
+    const maxH = h - 16;
+    for (let i = 0; i < EQ_BANDS; i++) {
+      const a = bandEdges[i];
+      const b = Math.max(a + 1, bandEdges[i + 1]);
+      let m = 0;
+      for (let k = a; k < b && k < freqData.length; k++) if (freqData[k] > m) m = freqData[k];
+      const v = (m / 255) ** 1.8; // a steeper curve keeps loud, dense music from filling every bar
+      peaks[i] = Math.max(v, peaks[i] - 0.012); // caps fall slowly
+      const bh = Math.max(2, Math.round(v * maxH));
+      const x = i * slot + 1;
+      const bw = Math.max(2, slot - 2);
+      ctx.fillStyle = v > 0.45 ? COL.blue : COL.dim;
+      ctx.fillRect(x, cy - bh / 2, bw, bh);
+      const ph = Math.max(2, peaks[i] * maxH);
+      ctx.fillStyle = COL.orange;
+      ctx.fillRect(x, cy - ph / 2 - 2, bw, 2);
+      ctx.fillRect(x, cy + ph / 2, bw, 2);
+    }
+    if (audio && audio.duration > 0) {
+      ctx.fillStyle = COL.orange;
+      ctx.fillRect(0, h - 2, Math.min(w, (audio.currentTime / audio.duration) * w), 2);
+    }
   }
 
   function setProgress(index, total) {
@@ -700,6 +918,19 @@
         drawAll();
       }
     });
+    $('log').addEventListener('click', (e) => {
+      const row = e.target.closest('.row-log[data-play]');
+      if (row && $('log').contains(row)) togglePlay(row);
+    });
+    $('playStop').addEventListener('click', () => stopPlayback());
+    $('wave').addEventListener('click', (e) => {
+      if (playState !== 'playing' || !audio || !(audio.duration > 0)) return;
+      const rect = $('wave').getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      audio.currentTime = frac * audio.duration;
+      updateTime();
+    });
+    window.addEventListener('beforeunload', () => { try { window.tc.playStop(); } catch (err) { /* closing anyway */ } });
     $('stop').addEventListener('click', () => { $('status').textContent = 'Stopping...'; window.tc.stop(); });
     $('openOut').addEventListener('click', () => window.tc.openFolder('out'));
     // ---- drag and drop ----

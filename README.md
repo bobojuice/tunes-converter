@@ -58,6 +58,7 @@ MP3 · AAC · FLAC · WAV · AIFF · Opus — with correct names, tags and an op
 - **Save report (optional):** a CSV report with each file's status, notes, flags and peak after every run.
 
 **The app**
+- **Playback preview (optional, on by default):** click a converted track in the list to hear it, with live EQ bars on the screen. It plays a temporary copy decoded by ffmpeg (deleted when you stop or quit); your files are never changed.
 - **Built like DJ gear:** a CDJ-style screen with a live waveform while it converts, a round progress platter,
   lit format pads, and a track list with colour flags (red clipping, orange duplicate, pink quality, teal health,
   violet player).
@@ -85,7 +86,7 @@ Step-by-step help for each system, the Gatekeeper/AppImage notes and troubleshoo
 ## ⚙️ Menu and settings
 
 The main screen has the format pads, the bit-depth/bitrate knob and the option keys. Click **MENU** (top right) for every option, including presets: output format, bit depth, bitrate, sample rate, quality check and
-minimum, file names, folders by tags, second copy, duplicate songs, player check, tags, sub-folders, cover art, full artist names, clipping and health checks, copy mode, cover-art shrinking, original dates, saving a report, watching the songs folder, and opening the output folder when finished.
+minimum, file names, folders by tags, second copy, duplicate songs, player check, tags, sub-folders, cover art, full artist names, clipping and health checks, copy mode, cover-art shrinking, original dates, saving a report, watching the songs folder, playback preview, and opening the output folder when finished.
 The two folders and all options are saved automatically in `settings.json`. See
 [docs/HOWTO.md](docs/HOWTO.md#settings) for where it lives and what each value means.
 
@@ -100,7 +101,7 @@ npm test           # unit + integration tests (needs ffmpeg and ffprobe on your 
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.6.0` collects them
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.7.0` collects them
 into a draft release. The earlier Windows-only PowerShell version (v1.x) is still available under **Releases**.
 
 ## 📝 Status

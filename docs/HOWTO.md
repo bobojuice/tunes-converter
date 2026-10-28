@@ -114,6 +114,8 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Share presets:** under the presets in the Menu, **Export / Import presets as a file** saves your presets to a small file or adds presets from one. Imported names that already exist are skipped, and every value is checked.
 
+**Playback preview:** on by default (MENU: *Play converted tracks from the results list*). Click a converted track (OK or WARN) in the list to hear it; click it again, or the stop button on the screen, to stop. Click the waveform area to jump within the track. The screen shows live EQ bars while it plays. The track is decoded by ffmpeg into a temporary WAV so every format plays; the temporary file is deleted when you stop, start another track or quit. Only files in the output folder can be played, and playback never changes any file. It needs ffmpeg, like converting.
+
 **Watch folder:** off by default. When on, new music files that appear in the songs folder (and its sub-folders if included) after you switch it on are converted automatically, once each, after they have finished copying. Files already in the folder are not touched. It stops when you switch it off or close the app.
 
 **Folders by tags:** off by default. In the Menu, *Folders by tags* puts converted files into sub-folders built from their tags, for example Artist / Album, Album Artist / Album, Genre, or your own pattern such as `{artist}/{album}` (up to three levels; `{artist}` `{albumartist}` `{album}` `{genre}` `{year}`). A missing tag becomes "Unknown Artist", "Unknown Album" and so on. Folder names are cleaned up so nothing can be written outside the output folder. When this is on it replaces the "Include sub-folders" layout for that run.
@@ -237,6 +239,7 @@ the app is closed:
 | `SecondOut`    | empty               | folder for the second copy (different from `In` and `Out`) |
 | `PlayerModel`  | `off`               | `off` or a CDJ/XDJ model key such as `cdj3000`, `xdjrx3` |
 | `Presets`      | empty               | list of saved presets, each a name plus the conversion options (managed in Settings; up to 20) |
+| `PlayPreview` | `true` | `false` turns off playing converted tracks from the list |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
 | `WinW`, `WinH` | `820`, `1000`      | window size, saved when you close the app |

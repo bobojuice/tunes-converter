@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src tcplay:">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tunes Converter</title>
 <link rel="stylesheet" href="styles.css">
@@ -73,6 +73,7 @@
     <label class="check"><input type="checkbox" data-key="KeepDates"> Keep the original file dates</label>
     <label class="check"><input type="checkbox" data-key="SaveReport"> Save a report file after each run</label>
     <label class="check"><input type="checkbox" data-key="WatchFolder"> Watch the songs folder and convert new files automatically <span id="watchState" class="watch-state" hidden>WATCHING</span></label>
+    <label class="check"><input type="checkbox" data-key="PlayPreview"> Play converted tracks from the results list (preview only, never changes files)</label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 
@@ -104,7 +105,13 @@
         <button id="browseOut" class="btn mini" type="button">Browse</button>
       </div>
     </div>
-    <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
+    <div class="title-row">
+      <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
+      <div id="transport" class="transport" hidden>
+        <button id="playStop" class="play-stop" type="button" aria-label="Stop playback" title="Stop playback" disabled>&#9632;</button>
+        <span id="playTime" class="play-time">0:00 / 0:00</span>
+      </div>
+    </div>
 
     <canvas id="wave" class="wave" role="img" aria-label="Waveform showing conversion progress"></canvas>
 

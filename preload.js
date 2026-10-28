@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('tc', {
   exportPresets: () => ipcRenderer.invoke('presets:export'),
   importPresets: () => ipcRenderer.invoke('presets:import'),
   stop: () => ipcRenderer.invoke('batch:stop'),
+  playPrepare: (name) => ipcRenderer.invoke('play:prepare', typeof name === 'string' ? name : ''),
+  playStop: () => ipcRenderer.invoke('play:stop'),
   openFolder: (folder) => ipcRenderer.invoke('shell:openFolder', folder),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   onBatchEvent: (cb) => {

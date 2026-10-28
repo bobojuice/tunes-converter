@@ -82,7 +82,15 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .path input:focus-visible { outline-offset: 0; }
 .path input:disabled { opacity: 0.6; }
 .screen-title { font-size: 18px; font-weight: 600; color: var(--lcd-hi); min-height: 24px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.title-row .screen-title { flex: 1; min-width: 0; }
+.transport { flex: none; display: flex; align-items: center; gap: 8px; height: 24px; }
+.play-stop { width: 24px; height: 22px; padding: 0; border: 1px solid var(--lcd-edge); border-radius: 3px; background: transparent; color: var(--orange); font-size: 11px; line-height: 1; }
+.play-stop:hover:not(:disabled) { background: #0b2830; border-color: #2b5b69; }
+.play-stop:disabled { color: #4b7c88; }
+.play-time { font: 11.5px var(--mono); color: var(--lcd-ink); white-space: nowrap; }
 .wave { display: block; width: 100%; height: 70px; }
+.wave.seekable { cursor: pointer; }
 .overview { position: relative; height: 40px; }
 .ov-strip { position: absolute; left: 0; right: 0; top: 16px; height: 22px; border-bottom: 1px solid var(--lcd-edge); }
 .minicv { display: block; width: 100%; height: 22px; }
@@ -186,7 +194,7 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
 .main-view > .log { flex: 1 1 0; min-height: 56px; } /* 120px is the target (see LOG_MIN in renderer.js); less only at the smallest zoom */
 .log { overflow: hidden; display: flex; flex-direction: column; }
-.log-head, .row-log { display: grid; grid-template-columns: 36px 84px minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; padding: 0 14px; }
+.log-head, .row-log { display: grid; grid-template-columns: 62px 84px minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; padding: 0 14px; }
 .log-head { padding-top: 9px; padding-bottom: 9px; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: var(--muted); }
 .log-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; font-size: 13px; scrollbar-width: thin; scrollbar-color: #3a3f47 transparent; }
 .log-body::-webkit-scrollbar { width: 8px; }
@@ -197,7 +205,13 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .lines { display: flex; flex-direction: column; }
 .row-log { padding-top: 9px; padding-bottom: 9px; align-items: center; border-bottom: 1px solid #16191d; }
 .row-log:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
-.row-log .num { font-family: var(--mono); color: var(--muted); }
+.row-log .num { display: flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--muted); }
+.row-log .play { flex: none; width: 22px; height: 20px; padding: 0; border: 1px solid var(--edge); border-radius: 3px; background: transparent; color: var(--blue); font-size: 10px; line-height: 1; }
+.row-log .play:hover { background: #1c1f25; border-color: #3a3f47; }
+.row-log.playable { cursor: pointer; }
+.row-log.playable:hover { background: rgba(46, 167, 255, 0.05); }
+.row-log.playing { background: rgba(46, 167, 255, 0.12); box-shadow: inset 3px 0 0 var(--blue); }
+.row-log.playing .play { color: var(--orange); border-color: var(--orange); }
 .row-log .tag { display: flex; align-items: center; gap: 8px; font: 500 11.5px var(--mono); letter-spacing: 0.04em; }
 .row-log .tag::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .row-log .body { font-weight: 600; overflow-wrap: anywhere; }
@@ -265,7 +279,7 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .narrow .ro-time { grid-column: 1 / -1; order: -1; }
 .narrow .panel .grid, .narrow .panel .presets { grid-template-columns: minmax(0, 1fr); }
 .narrow .panel .help, .narrow .panel .presets input[type="text"], .narrow .panel .presets .help { grid-column: 1; }
-.narrow .log-head, .narrow .row-log { grid-template-columns: 30px 70px minmax(0, 1fr); }
+.narrow .log-head, .narrow .row-log { grid-template-columns: 58px 70px minmax(0, 1fr); }
 .narrow .log-head span:nth-child(4) { display: none; }
 .narrow .row-log .note { grid-column: 3; }
 .narrow .opt { font-size: 10.5px; }

@@ -37,6 +37,7 @@ function defaults(desktopDir) {
     KeepDates: true,
     SaveReport: false,
     WatchFolder: false,
+    PlayPreview: true,
     PlayerModel: 'off',
     Presets: [],
     OpenWhenDone: false,
@@ -94,7 +95,7 @@ function merge(base, raw) {
   if (raw.SecondFormat === 'off' || FORMAT_KEYS.includes(raw.SecondFormat)) s.SecondFormat = raw.SecondFormat;
   if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
   if (raw.PlayerModel === 'off' || PLAYER_KEYS.includes(raw.PlayerModel)) s.PlayerModel = raw.PlayerModel;
-  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder']) {
+  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder', 'PlayPreview']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }
   if (Array.isArray(raw.Presets)) s.Presets = cleanPresets(raw.Presets);
