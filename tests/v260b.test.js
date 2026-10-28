@@ -36,8 +36,8 @@ test('players: every model has a label, formats, valid limits and the right flag
     assert.ok(p.fs === null || (Array.isArray(p.fs) && p.fs.length > 0), k);
     for (const [fmt, f] of Object.entries(p.formats)) {
       assert.ok(FORMAT_KEYS.includes(fmt), `${k}: ${fmt}`);
-      assert.ok(f.rate >= 44100 && f.rate <= 96000, k);
-      assert.ok(f.depth === null || [16, 24].includes(f.depth), k);
+      assert.ok(f.rates === null || (Array.isArray(f.rates) && f.rates.length > 0 && f.rates.every((x) => x >= 16000 && x <= 96000)), k);
+      assert.ok(f.depths === null || (Array.isArray(f.depths) && f.depths.every((x) => [16, 24].includes(x))), k);
     }
     assert.ok(p.formats.mp3 && p.formats.mp3.maxKbps === 320, k);
     assert.ok(!p.formats.opus, `${k}: Opus is listed by no model`);
@@ -49,9 +49,9 @@ test('players: no format claims beyond the published specs', () => {
   const has = (k, f) => Boolean(PLAYERS[k].formats[f]);
   for (const k of ['cdj2000', 'cdj850', 'cdj900nxs', 'cdj2000nxs']) assert.ok(!has(k, 'flac'), `${k}: no FLAC`);
   for (const k of ['cdj2000nxs2', 'cdj3000', 'cdjtour1', 'xdj1000mk2', 'xdjxz', 'xdjrx3']) assert.ok(has(k, 'flac'), `${k}: FLAC`);
-  assert.equal(PLAYERS.cdj2000nxs2.formats.flac.rate, 96000);
-  assert.equal(PLAYERS.cdj2000nxs.formats.wav.rate, 48000);
-  assert.equal(PLAYERS.xdjrx3.formats.aiff.rate, 48000);
+  assert.deepEqual(PLAYERS.cdj2000nxs2.formats.flac.rates, [44100, 48000, 88200, 96000]);
+  assert.deepEqual(PLAYERS.cdj2000nxs.formats.wav.rates, [44100, 48000]);
+  assert.deepEqual(PLAYERS.xdjrx3.formats.aiff.rates, [44100, 48000]);
   assert.ok(!PLAYER_KEYS.includes('xdjrx2'));
   assert.deepEqual(PLAYERS.cdj2000nxs.fs, ['FAT16', 'FAT32', 'HFS+']);
   assert.equal(PLAYERS.cdj3000.fs, null);
@@ -67,11 +67,11 @@ test('notes: formats, sample rates and bit depth', () => {
   assert.equal(playerNote('cdj2000nxs', { format: 'aiff', rate: 44100, depth: 16 }), '');
   assert.equal(playerNote('cdj2000nxs', { format: 'flac', rate: 44100, depth: 16 }), 'CDJ-2000NXS: FLAC not supported');
   for (const k of PLAYER_KEYS) assert.equal(playerNote(k, { format: 'opus', rate: 48000 }), `${PLAYERS[k].short}: Opus not supported`);
-  assert.equal(playerNote('cdj900nxs', { format: 'wav', rate: 96000, depth: 24 }), 'CDJ-900NXS: 96 kHz above the 48 kHz limit');
+  assert.equal(playerNote('cdj900nxs', { format: 'wav', rate: 96000, depth: 24 }), 'CDJ-900NXS: 96 kHz not in its list of supported rates (44.1, 48 kHz)');
   assert.equal(playerNote('cdj2000nxs2', { format: 'wav', rate: 96000, depth: 24 }), '');
-  assert.equal(playerNote('cdj2000nxs2', { format: 'wav', rate: 192000, depth: 24 }), 'CDJ-2000NXS2: 192 kHz above the 96 kHz limit');
-  assert.equal(playerNote('cdj850', { format: 'wav', rate: 44100, depth: 24 }), 'CDJ-850: 24-bit not supported');
-  assert.deepEqual(playerIssues('cdj850', { format: 'aiff', rate: 96000, depth: 24 }), ['96 kHz above the 48 kHz limit', '24-bit not supported']);
+  assert.equal(playerNote('cdj2000nxs2', { format: 'wav', rate: 192000, depth: 24 }), 'CDJ-2000NXS2: 192 kHz not in its list of supported rates (44.1, 48, 88.2, 96 kHz)');
+  assert.equal(playerNote('cdj850', { format: 'wav', rate: 44100, depth: 24 }), '', 'CDJ-850 lists 24-bit WAV/AIFF');
+  assert.deepEqual(playerIssues('cdj850', { format: 'aiff', rate: 96000, depth: 24 }), ['96 kHz not in its list of supported rates (44.1, 48 kHz)']);
   assert.deepEqual(playerIssues('cdj850', { format: 'mp3', rate: 44100, depth: null }), []);
   assert.deepEqual(playerIssues('cdj850', { format: 'mp3', rate: 44100, depth: 24 }), [], 'bit depth does not apply to lossy output');
   assert.deepEqual(playerIssues('off', { format: 'opus' }), []);
@@ -151,13 +151,13 @@ test('convertOne: rate and bit depth come from what was written', { skip }, asyn
   const dir = fresh('s');
   const hi = tone(path.join(dir, 'hi.wav'), ['-ar', '96000']);
   const a = await one(hi, { Format: 'flac', PlayerModel: 'xdjxz' });
-  assert.ok(a.note.includes('XDJ-XZ: 96 kHz above the 48 kHz limit'), a.note);
+  assert.ok(a.note.includes('XDJ-XZ: 96 kHz not in its list of supported rates (44.1, 48 kHz)'), a.note);
   const b = await one(hi, { Format: 'flac', PlayerModel: 'cdj2000nxs2' });
   assert.equal(b.player, false, b.note);
   const c = await one(hi, { Format: 'mp3', SampleRate: 44100, PlayerModel: 'cdj850' });
   assert.equal(c.player, false, 'lossy output is resampled to the chosen rate: ' + c.note);
   const d24 = await one(tone(path.join(dir, 'x.flac')), { Format: 'wav', BitDepth: 24, PlayerModel: 'cdj850' });
-  assert.ok(d24.note.includes('CDJ-850: 24-bit not supported'), d24.note);
+  assert.equal(d24.player, false, d24.note);
   const d16 = await one(tone(path.join(dir, 'y.flac')), { Format: 'wav', BitDepth: 16, PlayerModel: 'cdj850' });
   assert.equal(d16.player, false, d16.note);
   // copy mode keeps the source rate
