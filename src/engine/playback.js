@@ -244,9 +244,9 @@ async function waveformPeaks(wavFile, perSec = 100) {
     const sumSq = new Float64Array(bins);
     const lowSq = new Float64Array(bins);
     const cnt = new Int32Array(bins);
-    // one-pole low-pass (~175 Hz) on the mono mix: the bass / kick band
+    // one-pole low-pass (~175 Hz) per channel (energies averaged): the bass / kick band
     const alpha = 1 - Math.exp(-2 * Math.PI * 175 / rate);
-    let lp = 0;
+    const lp = new Float64Array(channels); // per-channel filter state
     const CHUNK = 1024 * 1024 - ((1024 * 1024) % frameBytes);
     let frame = 0; // global frame index
     let carry = Buffer.alloc(0);
@@ -260,17 +260,17 @@ async function waveformPeaks(wavFile, perSec = 100) {
       for (let f = 0; f < frames; f++) {
         const bin = Math.floor((frame + f) / binFrames);
         if (bin >= bins) break;
-        let sum = 0;
+        let sq = 0; let lsq = 0;
         for (let c = 0; c < channels; c++) {
           const s = buf.readInt16LE((f * channels + c) * 2);
-          sum += s;
           const v = s < 0 ? -s : s;
           if (v > maxArr[bin]) maxArr[bin] = v;
+          lp[c] += alpha * (s - lp[c]);
+          sq += s * s;
+          lsq += lp[c] * lp[c];
         }
-        const mono = sum / channels;
-        lp += alpha * (mono - lp);
-        sumSq[bin] += mono * mono;
-        lowSq[bin] += lp * lp;
+        sumSq[bin] += sq / channels;
+        lowSq[bin] += lsq / channels;
         cnt[bin] += 1;
       }
       frame += frames;

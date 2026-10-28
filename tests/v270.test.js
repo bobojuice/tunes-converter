@@ -243,6 +243,30 @@ test('waveformPeaks: rms and low bands match the peaks length and order loud/qui
   assert.equal(rbad.low.length, 0);
 });
 
+test('waveformPeaks: opposite-phase stereo still has rms and bass energy', async () => {
+  const d = fresh('wfphase');
+  const mk = (file, sign) => {
+    const rate = 22050; const n = rate;
+    const data = Buffer.alloc(n * 4);
+    for (let i = 0; i < n; i++) {
+      const s = Math.round(Math.sin(2 * Math.PI * 80 * i / rate) * 20000);
+      data.writeInt16LE(s, i * 4); data.writeInt16LE(sign * s, i * 4 + 2);
+    }
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0, 'latin1'); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8, 'latin1'); h.write('fmt ', 12, 'latin1');
+    h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(2, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 4, 28);
+    h.writeUInt16LE(4, 32); h.writeUInt16LE(16, 34); h.write('data', 36, 'latin1'); h.writeUInt32LE(data.length, 40);
+    fs.writeFileSync(file, Buffer.concat([h, data]));
+  };
+  mk(path.join(d, 'in.wav'), 1);
+  mk(path.join(d, 'out.wav'), -1);
+  const a = await pb.waveformPeaks(path.join(d, 'in.wav'));
+  const b = await pb.waveformPeaks(path.join(d, 'out.wav'));
+  const avg = (x) => { let s = 0; for (let i = 10; i < 90; i++) s += x[i]; return s / 80; };
+  assert.ok(avg(b.rms) > 20 && avg(b.low) > 20, `${avg(b.rms)} ${avg(b.low)}`);
+  assert.ok(avg(b.rms) > avg(a.rms) / 1.5 && avg(b.low) > avg(a.low) / 1.5);
+});
+
 function makeArtMp3(dir, withArt) {
   const mp3 = path.join(dir, withArt ? 'art.mp3' : 'plain.mp3');
   if (!withArt) {

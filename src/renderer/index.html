@@ -181,6 +181,7 @@
     </div>
 
     <div class="platter-col">
+      <div class="jog">
       <div id="track" class="platter" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="ring-mask"></div>
         <div class="cdj-vinyl" aria-hidden="true"></div>
@@ -201,6 +202,17 @@
           <span id="count" class="hub-c">0 / 0</span>
         </div>
         <div id="fill" class="fill" aria-hidden="true"></div>
+      </div>
+      <div id="tempoFader" class="fader off">
+        <button id="tempoVal" class="fd-val" type="button" tabindex="-1" title="Reset tempo to 0" aria-label="Reset tempo to 0">+0.0%</button>
+        <div id="tempo" class="fd-track" role="slider" tabindex="0" aria-label="Tempo" aria-orientation="vertical" aria-valuemin="-8" aria-valuemax="8" aria-valuenow="0" aria-valuetext="+0.0 percent" aria-disabled="true" title="Tempo (double-click to reset)">
+          <span class="fd-lab fd-plus" aria-hidden="true">+</span>
+          <span class="fd-lab fd-minus" aria-hidden="true">&minus;</span>
+          <span class="fd-slot" aria-hidden="true"></span>
+          <span id="fdTicks" class="fd-ticks" aria-hidden="true"></span>
+          <span class="fd-thumb" aria-hidden="true"></span>
+        </div>
+      </div>
       </div>
       <div class="actions">
         <button id="start" class="ringbtn go" type="button" aria-label="Start converting">START</button>

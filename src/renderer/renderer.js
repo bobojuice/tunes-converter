@@ -551,6 +551,35 @@
     if (audio) audio.volume = volume / 100;
     if (persist) { try { localStorage.setItem(VOL_KEY, String(volume)); } catch (err) { /* not saved */ } }
   }
+  // CDJ-style tempo fader: -8..+8 %, vinyl style (the pitch follows), 0 at the centre detent
+  let tempo = 0;
+  function applyRate() {
+    if (!audio) return;
+    const r = 1 + tempo / 100;
+    audio.defaultPlaybackRate = r; // a new src resets playbackRate to this
+    audio.playbackRate = r;
+    try { audio.preservesPitch = false; audio.webkitPreservesPitch = false; } catch (err) { /* vinyl-style pitch is optional */ }
+  }
+  function setTempo(t) {
+    tempo = clamp(Math.round(t * 10) / 10, -8, 8);
+    const txt = `${tempo < 0 ? '-' : '+'}${Math.abs(tempo).toFixed(1)}%`;
+    const f = $('tempo');
+    f.style.setProperty('--t', String(tempo));
+    f.setAttribute('aria-valuenow', String(tempo));
+    f.setAttribute('aria-valuetext', `${txt.replace('%', '')} percent`);
+    if ($('tempoVal').textContent !== txt) $('tempoVal').textContent = txt;
+    f.title = `Tempo ${txt} (double-click to reset)`;
+    $('tempoFader').classList.toggle('zero', tempo === 0);
+    applyRate();
+    renderSpin();
+  }
+  function syncTempoEnabled() {
+    const on = playState === 'playing';
+    $('tempoFader').classList.toggle('off', !on);
+    $('tempo').setAttribute('aria-disabled', on ? 'false' : 'true');
+    $('tempo').tabIndex = on ? 0 : -1;
+    $('tempoVal').disabled = !on;
+  }
   function togglePause() {
     if (playState !== 'playing' || !audio) return;
     if (audio.paused) audio.play().catch(() => {});
@@ -568,9 +597,10 @@
     renderSpin();
   }
 
-  // platter: 33 1/3 rpm = 1.8 s per turn; paused with the audio
+  // platter: 33 1/3 rpm = 1.8 s per turn, scaled by the tempo; paused with the audio
   function renderSpin() {
     const pl = $('track');
+    pl.style.setProperty('--rev', `${(1.8 / (1 + tempo / 100)).toFixed(3)}s`);
     const on = playState === 'playing';
     const rec = on && Boolean(settings().PlatterSpin);
     pl.classList.toggle('spinning', on);
@@ -686,6 +716,8 @@
     playState = 'idle';
     if (eqRaf) { cancelAnimationFrame(eqRaf); eqRaf = 0; }
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+    setTempo(0);
+    syncTempoEnabled();
     const prevRow = playRow;
     playRow = null;
     setRowPlaying(prevRow, false);
@@ -741,6 +773,8 @@
     lastMiniCol = -1;
     ctLast = -1;
     playState = 'playing';
+    syncTempoEnabled();
+    applyRate();
     $('eqIcon').hidden = false;
     setPlayStatus(baseName(name));
     showTransport(true);
@@ -1254,6 +1288,56 @@
       p.style.transform = `rotate(${i * 15}deg)`;
       pockets.appendChild(p);
     }
+    // tempo fader: drag, arrow keys (Shift / PageUp / PageDown = 1 %), Home resets, double-click or the readout resets
+    const fdTicks = $('fdTicks');
+    for (let v = 8; v >= -8; v -= 2) {
+      const b = document.createElement('b');
+      b.style.setProperty('--v', String(v));
+      if (v === 0) b.className = 'mid';
+      fdTicks.appendChild(b);
+    }
+    const fader = $('tempo');
+    const fdOn = () => playState === 'playing';
+    let fdDrag = false;
+    const fdSet = (e) => {
+      const r = fader.getBoundingClientRect();
+      const span = Math.max(1, r.height - 50); // thumb centre travels from 25 px to height - 25 px
+      const f = clamp((e.clientY - r.top - 25) / span, 0, 1);
+      let t = 8 - f * 16;
+      if (Math.abs(t) < 0.25) t = 0; // centre detent
+      setTempo(t);
+    };
+    fader.addEventListener('pointerdown', (e) => {
+      if (!fdOn() || e.button !== 0) return;
+      fdDrag = true;
+      try { fader.setPointerCapture(e.pointerId); } catch (err) { /* dragging still works while over it */ }
+      fader.focus({ preventScroll: true });
+      fdSet(e);
+      e.preventDefault();
+    });
+    fader.addEventListener('pointermove', (e) => { if (fdDrag) fdSet(e); });
+    const fdEnd = (e) => { fdDrag = false; try { fader.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ } };
+    fader.addEventListener('pointerup', fdEnd);
+    fader.addEventListener('pointercancel', fdEnd);
+    fader.addEventListener('dblclick', () => { if (fdOn()) setTempo(0); });
+    fader.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const big = e.shiftKey ? 1 : 0.1;
+      let t = null;
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') t = tempo + big;
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') t = tempo - big;
+      else if (e.key === 'PageUp') t = tempo + 1;
+      else if (e.key === 'PageDown') t = tempo - 1;
+      else if (e.key === 'Home') t = 0;
+      else if (e.key === 'End') t = -8;
+      if (t === null) return;
+      e.preventDefault();
+      e.stopPropagation(); // the fader keeps its own arrow keys (not volume / seek)
+      if (fdOn()) setTempo(t);
+    });
+    $('tempoVal').addEventListener('click', () => { if (fdOn()) setTempo(0); });
+    setTempo(0);
+    syncTempoEnabled();
     // skim strip: click or drag to seek
     const ovFrac = (e) => { const r = $('mini').getBoundingClientRect(); return clamp((e.clientX - r.left) / (r.width || 1), 0, 1); };
     const ovShow = (e) => {
