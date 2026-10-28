@@ -136,4 +136,26 @@ function watchPlan(s) {
   return { ok: true, reason: '' };
 }
 
-module.exports = { createWatcher, watchPlan };
+// Output folders the watch must ignore: the main output, plus the second output only while the second copy is on.
+// A retained SecondOut value with SecondFormat 'off' is not an output, so it must not hide new songs.
+function watchOutDirs(s) {
+  const second = s.SecondFormat && s.SecondFormat !== 'off' && typeof s.SecondOut === 'string' && s.SecondOut.trim() ? [s.SecondOut] : [];
+  return [s.Out, ...second].filter(Boolean);
+}
+
+// What a settings sync should do with the watcher. `cur` = { hasWatcher, key, missing } of the running one.
+// -> { action: 'stop' | 'keep' | 'start', key, info: { active, reason } }
+// While the songs folder is missing (and the rest is valid) a recovery watcher is kept or started, so the watch
+// resumes by itself when the folder comes back, also after settings changes in that state.
+function watchAction(s, cur = {}) {
+  const plan = watchPlan(s);
+  const recover = !plan.ok && plan.reason === 'songs folder missing' && Boolean(s.Out) && !sameFolder(s.In, s.Out);
+  if (!plan.ok && !recover) return { action: 'stop', key: '', info: { active: false, reason: plan.reason } };
+  const key = JSON.stringify([s.In, s.Out, watchOutDirs(s), Boolean(s.Recurse)]);
+  const gone = recover || Boolean(cur.missing);
+  const info = gone ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' };
+  if (cur.hasWatcher && cur.key === key) return { action: 'keep', key, info };
+  return { action: 'start', key, info: recover ? info : { active: true, reason: '' } };
+}
+
+module.exports = { createWatcher, watchPlan, watchOutDirs, watchAction };

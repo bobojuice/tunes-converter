@@ -99,6 +99,13 @@ const isInside = (root, dir) => {
   return Boolean(r) && !path.isAbsolute(r) && r.split(path.sep)[0] !== '..';
 };
 
+// A sub-folder that is a link (symlink, junction) to somewhere else must not carry files out of the output folder.
+// Checked on the real location of the folder, or of its nearest existing parent when it does not exist yet.
+function assertInsideCanon(root, dir) {
+  const r = path.relative(canon(root), canon(dir));
+  if (path.isAbsolute(r) || r.split(path.sep)[0] === '..') throw new Error('folder is a link that leads outside the output folder');
+}
+
 // Converts one file into one lane. Returns { res, rel } where rel is the sub-folder below the lane's folder.
 // With a folder template the sub-folder comes from the file's tags and replaces the mirrored layout.
 async function convertInLane(lane, entry, { tools, signal, onStatus }) {
@@ -113,13 +120,14 @@ async function convertInLane(lane, entry, { tools, signal, onStatus }) {
           rel = folderPath(template, fields);
           const dir = path.join(lane.root, rel);
           if (!isInside(lane.root, dir)) throw new Error('folder would be outside the output folder');
+          assertInsideCanon(lane.root, dir);
           return { outDir: dir, allocator: lane.allocatorFor(dir) };
         }
       });
       return { res, rel };
     }
     const target = rel ? path.join(lane.root, rel) : lane.root;
-    if (rel) fs.mkdirSync(target, { recursive: true });
+    if (rel) { assertInsideCanon(lane.root, target); fs.mkdirSync(target, { recursive: true }); }
     return { res: await convertOne({ ...common, outDir: target, allocator: lane.allocatorFor(target) }), rel };
   } catch (err) {
     return { res: { status: 'FAIL', name: path.basename(entry.full), note: err.message }, rel };
@@ -146,7 +154,9 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
   let second = null;
   const fmt2 = settings.SecondFormat && settings.SecondFormat !== 'off' && settings.SecondOut ? FORMATS[settings.SecondFormat] : null;
   if (fmt2) {
-    if (sameFolder(settings.SecondOut, outDir) || (!useInputs && sameFolder(settings.SecondOut, inDir))) {
+    // Checked in every input mode: with dropped files the source folders are the parents of the dropped files.
+    const sourceDirs = [...(inDir ? [inDir] : []), ...(useInputs ? inputs.map((i) => path.dirname(typeof i === 'string' ? i : i.full)) : [])];
+    if (sameFolder(settings.SecondOut, outDir) || sourceDirs.some((d) => sameFolder(settings.SecondOut, d))) {
       message('Second copy is off for this run: its folder must differ from the output folder and the songs folder.');
     } else {
       if (fmt2 !== FORMATS.mp3 && !(await hasEncoder(tools.ffmpeg, fmt2.encoder))) {
@@ -194,7 +204,8 @@ async function runBatch({ inDir, outDir, settings, tools, signal, onEvent, input
       const r2 = await convertInLane(second, files[i], { tools, signal, onStatus: (text) => onStatus(`Second copy - ${text}`) });
       if (r2.res.status === 'STOP') { stopped = true; break; }
       if (r2.res.status === 'OK' || r2.res.status === 'WARN') counts.SECOND += 1; // not added to the main totals
-      onEvent({ type: 'result', status: r2.res.status, name: r2.rel ? path.join(r2.rel, r2.res.name) : r2.res.name, note: `2nd output: ${r2.res.note || ''}`, second: true, health: false, player: false, duplicate: false, peak: null });
+      if (r2.res.player) counts.PLAYER += 1;
+      onEvent({ type: 'result', status: r2.res.status, name: r2.rel ? path.join(r2.rel, r2.res.name) : r2.res.name, note: `2nd output: ${r2.res.note || ''}`, second: true, health: false, player: Boolean(r2.res.player), duplicate: false, peak: null });
     }
     onEvent({ type: 'progress', index: i + 1, total: files.length, file: label });
   }

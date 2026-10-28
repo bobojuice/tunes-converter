@@ -7,7 +7,7 @@ const { findTools, hasMp3Encoder } = require('./src/engine/tools');
 const { runBatch } = require('./src/engine/batch');
 const { buildReport, writeReport } = require('./src/engine/report');
 const presetshare = require('./src/engine/presetshare');
-const { createWatcher, watchPlan } = require('./src/engine/watcher');
+const { createWatcher, watchAction, watchOutDirs } =require('./src/engine/watcher');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 let win = null;
@@ -125,15 +125,15 @@ function stopWatcher() {
 
 function syncWatcher() {
   const s = current();
-  const plan = watchPlan(s);
-  if (!plan.ok) { stopWatcher(); setWatchInfo({ active: false, reason: plan.reason }); return; }
-  const key = JSON.stringify([s.In, s.Out, s.SecondOut, s.Recurse]);
-  if (watcher && key === watchKey) { setWatchInfo(watchMissing ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' }); return; }
+  const act = watchAction(s, { hasWatcher: Boolean(watcher), key: watchKey, missing: watchMissing });
+  if (act.action === 'stop') { stopWatcher(); setWatchInfo(act.info); return; }
+  if (act.action === 'keep') { setWatchInfo(act.info); return; } // also keeps a recovery watcher while the folder is missing
   stopWatcher();
-  setWatchInfo({ active: true, reason: '' });
-  watchKey = key;
+  setWatchInfo(act.info);
+  watchKey = act.key;
+  watchMissing = !act.info.active;
   watcher = createWatcher({
-    dir: s.In, recurse: s.Recurse, outDir: [s.Out, s.SecondOut],
+    dir: s.In, recurse: s.Recurse, outDir: watchOutDirs(s),
     isBusy: () => batchSlot.busy,
     onLog: appendLog,
     onMissing: (gone) => {

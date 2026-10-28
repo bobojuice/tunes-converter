@@ -114,7 +114,7 @@ function safeFolderName(s) {
   let n = safeName(s).replace(/^[. ]+/, '');
   n = Array.from(n).slice(0, MAX_FOLDER_NAME).join('');
   n = trimToBytes(n, 200);
-  if (n && RESERVED.test(n)) n = `_${n}`;
+  if (n && RESERVED.test(n)) n = Array.from(`_${n}`).slice(0, MAX_FOLDER_NAME).join('').replace(/[. ]+$/, ''); // the prefix must not push it over the cap
   return n;
 }
 
