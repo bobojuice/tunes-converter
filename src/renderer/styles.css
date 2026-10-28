@@ -365,22 +365,24 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
     radial-gradient(circle closest-side, #181a1f 0 79%, #121317 90%, #0b0c0e 96%, #20232a 100%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 6px rgba(0, 0, 0, 0.6);
 }
-.platter.cdj .deck-face, .platter.cdj .art { inset: 42px; border: 0; box-shadow: 0 0 0 1px #d4dae1, 0 0 0 2.5px #040405, 0 0 7px 3px rgba(0, 0, 0, 0.55); }
+.platter.cdj .deck-face, .platter.cdj .art { inset: 50px; border: 0; box-shadow: 0 0 0 1px #d4dae1, 0 0 0 2.5px #040405, 0 0 7px 3px rgba(0, 0, 0, 0.55); }
 .platter.cdj .cdj-pockets { display: block; position: absolute; inset: 0; pointer-events: none; animation: platter-spin var(--rev, 1.8s) linear infinite; }
 .platter.cdj .cdj-pockets i {
-  position: absolute; left: 50%; top: 17px; width: 19px; height: 13px; margin-left: -9.5px; border-radius: 50%; transform-origin: 9.5px 95px;
+  position: absolute; left: 50%; top: 21.5px; width: 14px; height: 9px; margin-left: -7px; border-radius: 50%; transform-origin: 7px 90.5px;
   background: radial-gradient(ellipse at 50% 68%, #010102 0, #050506 50%, #101215 100%);
   box-shadow: inset 0 2px 3px rgba(0, 0, 0, 1), inset 0 -1px 1px rgba(255, 255, 255, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.9), 0 1px 0 1px rgba(255, 255, 255, 0.13), 0 -1px 0 1px rgba(255, 255, 255, 0.05);
 }
+/* clean chrome/dark bevel at the vinyl edge (static); a thin radial reference line on the black ring turns with the pockets */
 .platter.cdj .cdj-rim {
-  display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: repeating-conic-gradient(rgba(255, 255, 255, 0.85) 0 0.9deg, rgba(255, 255, 255, 0) 1.7deg 6deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
-  animation: platter-spin var(--rev, 1.8s) linear infinite;
+  display: block; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(214, 220, 229, 0.6), inset 0 0 0 2.5px #08090b, inset 0 3px 3px 2px rgba(255, 255, 255, 0.07);
 }
-.platter.cdj.paused .cdj-rim, .platter.cdj.paused .cdj-pockets { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) { .platter.cdj .cdj-rim, .platter.cdj .cdj-pockets { animation: none; } }
+.platter.cdj .cdj-pockets::after {
+  content: ""; position: absolute; left: 111px; top: 34px; width: 2px; height: 11px; border-radius: 1px;
+  background: #eef1f5; box-shadow: 0 0 4px rgba(255, 255, 255, 0.75);
+}
+.platter.cdj.paused .cdj-pockets { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .platter.cdj .cdj-pockets { animation: none; } }
 .platter.cdj .cdj-head {
   display: block; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   transform: rotate(var(--ph, 0deg));
@@ -394,11 +396,12 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
   border-radius: 7px; font: 700 10px/14px var(--cond); text-align: center; color: #0b0c0e; box-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
 }
 .platter.cdj .cdj-cue[hidden] { display: none; }
-.platter.cdj.has-art .hub { left: 84px; top: 153px; width: 56px; height: 20px; border-radius: 10px; background: rgba(14, 16, 20, 0.88); box-shadow: 0 0 0 2px rgba(5, 5, 6, 0.55); }
+.platter.cdj.has-art .hub { left: 84px; top: 142px; width: 56px; height: 20px; border-radius: 10px; background: rgba(14, 16, 20, 0.88); box-shadow: 0 0 0 2px rgba(5, 5, 6, 0.55); }
 .platter.cdj.has-art .hub-big { font-size: 14px; letter-spacing: 0; line-height: 1; }
 /* CDJ-style tempo fader to the right of the platter */
-.fader { flex: none; width: 28px; height: 224px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: opacity 0.15s; }
-.fader.off { opacity: 0.4; }
+.fader { flex: none; width: 28px; height: 224px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: opacity 0.3s, visibility 0.3s; }
+.fader.off { opacity: 0; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .fader { transition: none; } }
 .fd-val { flex: none; width: 36px; height: 16px; margin: 0 -4px; padding: 0; border: 0; background: transparent; color: var(--lcd-ink); font: 500 9.5px/16px var(--mono); text-align: center; letter-spacing: -0.02em; }
 .fader.zero .fd-val { color: var(--muted); }
 .fader.off .fd-val { cursor: default; }
@@ -408,12 +411,11 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .fd-plus { top: 1px; } .fd-minus { bottom: 1px; }
 .fd-slot { position: absolute; left: 50%; top: 14px; bottom: 14px; width: 4px; margin-left: -2px; border-radius: 2px; background: #020203; box-shadow: inset 0 1px 2px #000, 0 0 0 1px rgba(255, 255, 255, 0.06); }
 .fd-ticks b { position: absolute; left: 50%; width: 22px; margin-left: -11px; height: 1px; top: calc(25px + (8 - var(--v)) / 16 * (100% - 50px)); background: linear-gradient(90deg, #5a616c 0 4px, transparent 4px 18px, #5a616c 18px 22px); }
-.fd-ticks b.mid { height: 2px; margin-top: -0.5px; background: linear-gradient(90deg, var(--soft) 0 6px, transparent 6px 16px, var(--soft) 16px 22px); }
+.fd-ticks b.mid { height: 2px; margin-top: -0.5px; background: linear-gradient(90deg, #e6e9ee 0 6px, transparent 6px 16px, #e6e9ee 16px 22px); }
 .fd-thumb {
   position: absolute; left: 50%; width: 22px; height: 30px; margin-left: -11px; top: calc(10px + (8 - var(--t)) / 16 * (100% - 50px)); border-radius: 3px; border: 1px solid #0a0b0d;
-  background: linear-gradient(90deg, #4b515b 0, #8e96a1 22%, #c9cfd8 45%, #7b838e 62%, #4a5059 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(90deg, #07080a 0, #2b2f36 24%, #3a3f48 42%, #1a1c21 66%, #050506 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 0 -2px 3px rgba(0, 0, 0, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.08), 0 2px 4px rgba(0, 0, 0, 0.75);
 }
-.fd-thumb::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 2px; margin-top: -1px; background: #0c0d10; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35); }
-.fader.zero .fd-thumb::after { background: var(--orange); box-shadow: 0 0 4px rgba(255, 138, 31, 0.7); }
+.fd-thumb::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 2px; margin-top: -1px; background: #e6e9ee; box-shadow: 0 0 3px rgba(255, 255, 255, 0.35); }
 .fd-track:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
