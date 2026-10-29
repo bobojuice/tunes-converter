@@ -170,30 +170,9 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .knob-ticks { position: absolute; inset: 0; }
 .knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #4a505a; }
 .knob-ticks b.on { background: #fff; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
-/* DJM-style EQ knob seen from the top: ribbed grip ring (22 ribs), thin bright rim, near-black brushed top face, bold white indicator */
-.knob .cap {
-  position: absolute; left: 7px; top: 7px; width: 58px; height: 58px; border-radius: 50%;
-  background: repeating-conic-gradient(from -8.18deg, #050607 0deg, #050607 1.2deg, #2c2f35 3deg, #42464e 5deg, #42464e 11.4deg, #2c2f35 13.4deg, #050607 15.2deg, #050607 16.36deg);
-  box-shadow: 0 0 0 1px #000, 0 4px 8px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9);
-}
-/* thin silver rim just inside the grip ring: catches light on the upper left */
-.knob .cap::before {
-  content: ""; position: absolute; inset: 6px; border-radius: 50%; pointer-events: none; box-sizing: border-box;
-  border: 1px solid; border-color: rgba(228, 233, 240, 0.8) rgba(220, 226, 235, 0.4) rgba(220, 226, 235, 0.22) rgba(228, 233, 240, 0.65);
-  background: #0a0b0d;
-}
-/* top face: near black, faint brushed sheen and concentric ring texture, only slightly convex */
-.knob .cap::after {
-  content: ""; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
-  background:
-    radial-gradient(ellipse 55% 42% at 34% 26%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 100%),
-    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0 0.6px, rgba(0, 0, 0, 0) 0.6px 1.6px),
-    conic-gradient(from 0deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0.06) 25%, rgba(255, 255, 255, 0) 37%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.06) 75%, rgba(255, 255, 255, 0) 87%, rgba(255, 255, 255, 0.07)),
-    radial-gradient(circle at 50% 50%, #151719 0, #101214 75%, #0a0b0c 100%);
-  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.8);
-}
-.knob:hover:not(:disabled) .cap { box-shadow: 0 0 0 1px #3a3f47, 0 4px 8px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9); }
-.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 13px; border-radius: 1.5px; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.45), 0 0 1px rgba(0, 0, 0, 0.8); transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
+/* DJM-style knob: one piece of black plastic. The grip flutes, the top and the body are the same material: the depth comes from shading only */
+.knob .kgfx { position: absolute; inset: 0; width: 72px; height: 72px; overflow: visible; pointer-events: none; filter: drop-shadow(0 3px 2.5px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
+.knob:hover:not(:disabled) .kgfx { filter: drop-shadow(0 3px 2.5px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)) brightness(1.12); }.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 13px; border-radius: 1.5px; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.45), 0 0 1px rgba(0, 0, 0, 0.8); transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 32px; width: 52px; text-align: center; font: 500 11px var(--mono); color: var(--ink); }
 .knob:disabled { opacity: 0.6; }
 .klo, .khi { position: absolute; bottom: -9px; font: 10px/1 var(--mono); color: var(--muted); }
