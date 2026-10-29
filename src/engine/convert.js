@@ -9,7 +9,7 @@ const { FORMATS } = require('./formats');
 const { checkClipping } = require('./clipping');
 const { songKey } = require('./duplicates');
 const { checkHealth } = require('./health');
-const { findArt, resizeArt } = require('./art');
+const { findArt, resizeArt, pictureMetadata } = require('./art');
 const { playerNote } = require('./players');
 
 async function probe(ffprobe, file, signal) {
@@ -143,6 +143,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const coverOk = keepCover && fmt !== FORMATS.opus && !fmt.noCover; // the Opus and WAV containers take no cover art this way
   let artFile = null;
   let artCleanup = () => {};
+  const metaFile = `${part}.meta`;
   const args = ['-v', 'error', '-y', '-i', file];
   try {
     const art = coverOk && settings.ArtResize !== false ? findArt(info) : null;
@@ -153,11 +154,31 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       if (signal.aborted) return { status: 'STOP' };
       artFile = small.file;
     }
-    if (artFile) args.push('-i', artFile);
+    const tagMode = settings.TagMode || 'keep';
+    // Opus: the ogg muxer drops attached pictures, so the cover goes in as a METADATA_BLOCK_PICTURE tag via a temp ffmetadata input.
+    let metaIdx = -1;
+    const opusArt = keepCover && fmt === FORMATS.opus && tagMode !== 'strip' ? findArt(info) : null;
+    if (opusArt) {
+      try {
+        if (onStatus) onStatus(`Checking cover art - ${baseName}`);
+        const got = await resizeArt({ ffmpeg: tools.ffmpeg, input: file, art: opusArt, base: part, signal, resize: settings.ArtResize !== false });
+        artCleanup = got.cleanup;
+        if (signal.aborted) return { status: 'STOP' };
+        const img = got.file || got.raw;
+        const text = img ? pictureMetadata(fs.readFileSync(img)) : null;
+        if (text) {
+          fs.writeFileSync(metaFile, text);
+          metaIdx = 1;
+          if (got.file) artFile = got.file;
+        }
+      } catch { metaIdx = -1; /* never fail the conversion because of art */ }
+    }
+    if (artFile && metaIdx < 0) args.push('-i', artFile);
+    if (metaIdx > 0) args.push('-i', metaFile);
     args.push('-map', '0:a:0');
     if (coverOk) args.push('-map', artFile ? '1:v:0' : '0:v?');
-    const tagMode = settings.TagMode || 'keep';
     args.push('-map_metadata', tagMode === 'keep' ? '0' : '-1');
+    if (metaIdx > 0) args.push('-map_metadata', String(metaIdx));
     if (copy) {
       args.push('-c', 'copy');
       if (coverOk) args.push('-disposition:v', 'attached_pic');
@@ -195,8 +216,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
     if (settings.KeepDates !== false) keepDates(file, dest);
     let note = dupNote + (copy ? 'copied (no re-encode)' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${depth}-bit` : 'lossless');
-    if (artFile) note += ' | cover art resized';
-    if (quality && quality.msg) note += ` | ${quality.msg}`;
+    if (artFile) note += ' | cover art resized';    if (quality && quality.msg) note += ` | ${quality.msg}`;
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
     if (healthMsg) note += ` | ${healthMsg}`;
@@ -214,6 +234,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {
     try { fs.rmSync(part, { force: true }); } catch { /* leave it */ }
+    try { fs.rmSync(metaFile, { force: true }); } catch { /* leave it */ }
     artCleanup();
   }
 }

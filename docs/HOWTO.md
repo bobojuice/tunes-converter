@@ -106,7 +106,7 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Health check:** on by default (Menu). Each file is checked for mono sound stored as stereo, a sample rate below 44.1 kHz, and damage or truncation. It only adds a note to the log, a teal flag and a count in the summary; the file is still converted and nothing is changed.
 
-**Cover art size:** only oversized embedded art (over 1000 pixels on a side or about 1 MB) is shrunk to a JPEG of at most 800 pixels; normal art is left exactly as it is. The audio is never touched. On by default.
+**Cover art size:** only oversized embedded art (over 1000 pixels on a side or about 1 MB) is shrunk to a JPEG of at most 800 pixels; normal art is left exactly as it is. The audio is never touched. Opus files keep their cover art too. On by default.
 
 **Original dates:** the converted file gets the original file's modified date, so your folders still sort by date. On by default.
 
