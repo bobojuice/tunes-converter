@@ -170,38 +170,30 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .knob-ticks { position: absolute; inset: 0; }
 .knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #4a505a; }
 .knob-ticks b.on { background: #fff; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
-/* DJM-style EQ knob: smooth black cylinder with 12 shallow scooped flutes around the side, a smooth top cap, a white indicator line */
+/* DJM-style EQ knob seen from the top: ribbed grip ring (22 ribs), thin bright rim, near-black brushed top face, bold white indicator */
 .knob .cap {
-  position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%;
-  background:
-    radial-gradient(circle 4.9px at 26.00px -1.67px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 39.84px 2.04px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 49.96px 12.16px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 53.67px 26.00px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 49.96px 39.83px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 39.84px 49.96px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 26.00px 53.67px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 12.17px 49.96px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 2.04px 39.84px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at -1.67px 26.00px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 2.04px 12.16px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle 4.9px at 12.16px 2.04px, #040405 0 2.1px, #2b2e34 3.3px, rgba(58, 61, 68, 0.45) 4.1px, rgba(58, 61, 68, 0) 4.9px),
-    radial-gradient(circle at 50% 50%, #26292f 0, #1c1e23 100%);
-  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4);
+  position: absolute; left: 7px; top: 7px; width: 58px; height: 58px; border-radius: 50%;
+  background: repeating-conic-gradient(from -8.18deg, #050607 0deg, #050607 1.2deg, #2c2f35 3deg, #42464e 5deg, #42464e 11.4deg, #2c2f35 13.4deg, #050607 15.2deg, #050607 16.36deg);
+  box-shadow: 0 0 0 1px #000, 0 4px 8px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9);
 }
-/* soft shading so the side reads round */
+/* thin silver rim just inside the grip ring: catches light on the upper left */
 .knob .cap::before {
-  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 0 62%, rgba(0, 0, 0, 0.5) 100%), linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.3));
+  content: ""; position: absolute; inset: 6px; border-radius: 50%; pointer-events: none; box-sizing: border-box;
+  border: 1px solid; border-color: rgba(228, 233, 240, 0.8) rgba(220, 226, 235, 0.4) rgba(220, 226, 235, 0.22) rgba(228, 233, 240, 0.65);
+  background: #0a0b0d;
 }
-/* the smooth top cap, a little raised, with a soft specular highlight */
+/* top face: near black, faint brushed sheen and concentric ring texture, only slightly convex */
 .knob .cap::after {
-  content: ""; position: absolute; inset: 5px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(ellipse 60% 45% at 36% 24%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 50%, #1c1e23 0, #131518 70%, #0a0b0d 100%);
-  box-shadow: 0 0 0 1px #000, 0 2px 3px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  content: ""; position: absolute; inset: 7px; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 42% at 34% 26%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 100%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0 0.6px, rgba(0, 0, 0, 0) 0.6px 1.6px),
+    conic-gradient(from 0deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0.06) 25%, rgba(255, 255, 255, 0) 37%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.06) 75%, rgba(255, 255, 255, 0) 87%, rgba(255, 255, 255, 0.07)),
+    radial-gradient(circle at 50% 50%, #151719 0, #101214 75%, #0a0b0c 100%);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.8);
 }
-.knob:hover:not(:disabled) .cap { box-shadow: 0 0 0 1px #3a3f47, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4); }
-.knob .ptr { position: absolute; left: 35px; top: 11px; width: 2px; height: 8px; border-radius: 1px; background: #fff; box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); transform-origin: 1px 25px; transform: rotate(var(--ang, -45deg)); }
+.knob:hover:not(:disabled) .cap { box-shadow: 0 0 0 1px #3a3f47, 0 4px 8px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9); }
+.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 13px; border-radius: 1.5px; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.45), 0 0 1px rgba(0, 0, 0, 0.8); transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 32px; width: 52px; text-align: center; font: 500 11px var(--mono); color: var(--ink); }
 .knob:disabled { opacity: 0.6; }
 .klo, .khi { position: absolute; bottom: -9px; font: 10px/1 var(--mono); color: var(--muted); }
