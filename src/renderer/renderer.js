@@ -104,8 +104,8 @@
       for (let i = 0; i < 9; i++) {
         const t = document.createElement('b');
         const a = ((-135 + i * 33.75) * Math.PI) / 180;
-        t.style.left = `${Math.round(36 + 33 * Math.sin(a) - 2)}px`;
-        t.style.top = `${Math.round(36 - 33 * Math.cos(a) - 2)}px`;
+        t.style.left = `${Math.round(36 + 40 * Math.sin(a) - 2)}px`;
+        t.style.top = `${Math.round(36 - 40 * Math.cos(a) - 2)}px`;
         ticks.appendChild(t);
       }
     }
