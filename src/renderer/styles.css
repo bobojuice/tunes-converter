@@ -167,19 +167,45 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .level { display: flex; align-items: center; gap: 22px; }
 .knob-wrap { position: relative; width: 72px; height: 72px; flex: none; }
 .knob { position: absolute; inset: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink); }
-/* DJM-style knob: flat black cylinder top, a bold white indicator line, 12 rounded scallops round the grip, a gently domed cap, one dot per knob step on a circle outside the grip (same angles as the pointer, -135 to +135 degrees) */
-.kgfx { position: absolute; inset: 0; width: 72px; height: 72px; overflow: visible; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.7)); }
-.kgfx .kbody { fill: #31353c; stroke: #31353c; stroke-width: 0.8; stroke-linejoin: round; }
-.kgfx .ktop { fill: url(#kcap); stroke: #07080a; stroke-width: 0.8; }
-.kgfx .kbevel { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 0.6; }
-.knob:hover:not(:disabled) .kgfx .kbody { fill: #3a3f47; stroke: #3a3f47; }
-.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 10px; border-radius: 1.5px; background: #fff; transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
+.knob-ticks { position: absolute; inset: 0; }
+.knob-ticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #4a505a; }
+.knob-ticks b.on { background: #fff; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
+/* DJM-style EQ knob: smooth black cylinder with 12 shallow scooped flutes around the side, a smooth top cap, a white indicator line */
+.knob .cap {
+  position: absolute; left: 10px; top: 10px; width: 52px; height: 52px; border-radius: 50%;
+  background:
+    radial-gradient(circle 4.6px at 26px 0.5px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 38.75px 3.92px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 48.08px 13.25px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 51.5px 26px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 48.08px 38.75px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 38.75px 48.08px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 26px 51.5px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 13.25px 48.08px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 3.92px 38.75px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 0.5px 26px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 3.92px 13.25px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle 4.6px at 13.25px 3.92px, #010101 0 2.8px, #3a3d44 3.6px, rgba(58, 61, 68, 0) 4.6px),
+    radial-gradient(circle at 50% 50%, #26292f 0, #1c1e23 100%);
+  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4);
+}
+/* soft shading so the side reads round */
+.knob .cap::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 0 62%, rgba(0, 0, 0, 0.5) 100%), linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.3));
+}
+/* the smooth top cap, a little raised, with a soft specular highlight */
+.knob .cap::after {
+  content: ""; position: absolute; inset: 5px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse 60% 45% at 36% 24%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 50%, #1c1e23 0, #131518 70%, #0a0b0d 100%);
+  box-shadow: 0 0 0 1px #000, 0 2px 3px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.knob:hover:not(:disabled) .cap { box-shadow: 0 0 0 1px #3a3f47, 0 3px 6px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.4); }
+.knob .ptr { position: absolute; left: 35px; top: 11px; width: 2px; height: 8px; border-radius: 1px; background: #fff; box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); transform-origin: 1px 25px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 32px; width: 52px; text-align: center; font: 500 11px var(--mono); color: var(--ink); }
 .knob:disabled { opacity: 0.6; }
-.klo, .khi { position: absolute; left: 0; top: 64px; transform: translateX(-50%); font: 10px/1 var(--mono); color: var(--muted); }
-.kticks { position: absolute; inset: 0; pointer-events: none; }
-.kticks b { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #3a3f47; }
-.kticks b.on { background: #fff; box-shadow: 0 0 5px 1px rgba(46, 167, 255, 0.85); }
+.klo, .khi { position: absolute; bottom: -9px; font: 10px/1 var(--mono); color: var(--muted); }
+.klo { left: -2px; } .khi { right: -2px; }
 .meter-box { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .meter-label { display: flex; justify-content: space-between; gap: 8px; font: 10.5px var(--mono); color: var(--muted); }
 .meter-label .pv { color: var(--ink); white-space: nowrap; }
