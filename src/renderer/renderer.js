@@ -99,18 +99,6 @@
     const label = lossless ? `Bit depth ${cur}` : `Bitrate ${cur} kbps`;
     $('knob').setAttribute('aria-label', `${label}. Click to change.`);
     $('knob').title = `${label}. Click to change.`;
-    const ticks = $('knobTicks');
-    if (!ticks.childNodes.length) {
-      for (let i = 0; i < 9; i++) {
-        const t = document.createElement('b');
-        const a = ((-135 + i * 33.75) * Math.PI) / 180;
-        t.style.left = `${Math.round(36 + 33 * Math.sin(a) - 2)}px`;
-        t.style.top = `${Math.round(36 - 33 * Math.cos(a) - 2)}px`;
-        ticks.appendChild(t);
-      }
-    }
-    const lit = Math.round((ang + 135) / 33.75);
-    Array.from(ticks.children).forEach((t, i) => t.classList.toggle('on', i === lit));
   }
 
   function formatReadout() {
@@ -131,7 +119,8 @@
     } else {
       $('roTime').textContent = phase === 'done' ? '00:00' : '--:--';
     }
-    renderFlagsOrBpm();
+    $('roFlags').textContent = String(flags.length);
+    $('roFlags').classList.toggle('hot', flags.length > 0);
     // platter
     const pct = total ? Math.round((progIndex / total) * 100) : 0;
     const p = phase === 'idle' ? 0 : pct;
@@ -161,18 +150,6 @@
       $('count').textContent = '';
     }
     if (playState === 'playing') hubPlay(); // elapsed time sits in the hub while a track plays
-  }
-
-  // the FLAGS readout becomes BPM (tag value x tempo) while a track is loaded
-  function renderFlagsOrBpm() {
-    const loaded = playState === 'playing';
-    const label = loaded ? 'BPM' : 'FLAGS';
-    if ($('roFlagsL').textContent !== label) $('roFlagsL').textContent = label;
-    let txt;
-    if (loaded) txt = trackBpm > 0 ? (trackBpm * (1 + tempo / 100)).toFixed(1) : '---';
-    else txt = String(flags.length);
-    if ($('roFlags').textContent !== txt) $('roFlags').textContent = txt;
-    $('roFlags').classList.toggle('hot', !loaded && flags.length > 0);
   }
 
   // ---- peak meter: 20 segments (13 green, 4 amber, 3 red), -30 dB .. 0 dB ----
@@ -479,7 +456,6 @@
   let meterHold = -60;
   let meterHoldAt = 0;
   let meterTxtAt = 0;
-  let trackBpm = 0;
   let jog = null; // { id, wasPlaying, last, t, deg } while the platter is held
   let tempoRange = 10;
   const RANGES = [6, 10, 16];
@@ -623,7 +599,6 @@
     $('tempoFader').classList.toggle('zero', tempo === 0);
     applyRate();
     renderSpin();
-    renderFlagsOrBpm();
   }
   function syncTempoEnabled() {
     const on = playState === 'playing';
@@ -823,7 +798,6 @@
     $('track').style.removeProperty('--oa');
     $('track').style.removeProperty('--pa'); // the finger nubs go back to their start position
     pockAng = 0;
-    trackBpm = 0;
     $('ovTip').hidden = true;
     setArt('');
     renderSpin();
@@ -864,7 +838,6 @@
     if (req !== playReq) return;
     wf = buildWf(r);
     trackLen = r.duration > 0 ? r.duration : 0;
-    trackBpm = Number(r.bpm) > 0 ? Number(r.bpm) : 0;
     miniCache = null;
     lastMiniCol = -1;
     ctLast = -1;

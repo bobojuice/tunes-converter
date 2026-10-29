@@ -203,8 +203,7 @@ function registerIpc() {
     const src = playback.resolvePlayable(name, s.Out);
     if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
     const r = await getPlayer().prepare(t.ffmpeg, src, ticket);
-    const bpm = r.ok ? await playback.readBpm(t.ffprobe, src) : 0; // an existing BPM tag only, never analysed
-    return r.ok ? { ok: true, bpm, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, rms: r.rms, low: r.low, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
+    return r.ok ? { ok: true, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, rms: r.rms, low: r.low, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
   });
 
   ipcMain.handle('play:stop', (event) => {

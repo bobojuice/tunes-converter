@@ -309,45 +309,4 @@ function rangeFor(size, header) {
   return { status: 206, start, end };
 }
 
-// Reads an EXISTING bpm/tbpm/tempo tag from ffprobe's JSON tags (format and/or streams). 0 = none / not 40..250.
-// Never analyses audio.
-function bpmFromTags(obj) {
-  const found = [];
-  const collect = (tags) => {
-    if (!tags || typeof tags !== 'object') return;
-    for (const [k, v] of Object.entries(tags)) {
-      if (['bpm', 'tbpm', 'tempo'].includes(k.toLowerCase())) found.push(v);
-    }
-  };
-  if (obj && typeof obj === 'object') {
-    collect(obj);
-    collect(obj.format && obj.format.tags);
-    if (Array.isArray(obj.streams)) for (const s of obj.streams) collect(s && s.tags);
-  }
-  for (const v of found) {
-    if (typeof v !== 'string' && typeof v !== 'number') continue;
-    const str = String(v).trim();
-    if (!/^\d+(\.\d+)?$/.test(str)) continue;
-    const n = Math.round(Number(str) * 10) / 10;
-    if (n >= 40 && n <= 250) return n;
-  }
-  return 0;
-}
-
-// Never throws and never fails playback: any problem or a slow ffprobe (3 s) gives 0.
-async function readBpm(ffprobeExe, file) {
-  if (!ffprobeExe) return 0;
-  const c = new AbortController();
-  const timer = setTimeout(() => c.abort(), 3000);
-  try {
-    const r = await run(ffprobeExe, ['-v', 'error', '-show_entries', 'format_tags:stream_tags', '-of', 'json', file], { signal: c.signal, maxBytes: 1024 * 1024 });
-    if (r.code !== 0 || r.aborted || r.truncated) return 0;
-    return bpmFromTags(JSON.parse(r.stdout));
-  } catch {
-    return 0;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-module.exports = { bpmFromTags, readBpm, rangeFor, AUDIO_EXTS, insideRoot, resolvePlayable, createPlayer, sweepStale, serveDecision, waveformPeaks, MAX_WAV_BYTES };
+module.exports = { rangeFor, AUDIO_EXTS, insideRoot, resolvePlayable, createPlayer, sweepStale, serveDecision, waveformPeaks, MAX_WAV_BYTES };
