@@ -798,6 +798,7 @@
     addMessage(text, 'error');
   }
 
+  let pockAng = 0; // degrees the finger-nub band has been turned by dragging the platter (kept after release)
   function stopPlayback() {
     playReq += 1;
     const was = playState !== 'idle';
@@ -820,6 +821,8 @@
     jog = null;
     $('track').classList.remove('scrub');
     $('track').style.removeProperty('--oa');
+    $('track').style.removeProperty('--pa'); // the finger nubs go back to their start position
+    pockAng = 0;
     trackBpm = 0;
     $('ovTip').hidden = true;
     setArt('');
@@ -1385,13 +1388,40 @@
     const fader = $('tempo');
     const fdOn = () => playState === 'playing';
     let fdDrag = false;
+    // magnetic centre: within +/-0.4 % the value snaps to 0; once there, it takes a little extra movement (0.65 %) to leave
+    const SNAP_IN = 0.4;
+    const SNAP_OUT = 0.65;
+    const fdTick = () => {
+      const tr = $('tempo');
+      tr.classList.remove('flash');
+      void tr.offsetWidth;
+      tr.classList.add('flash');
+      if (!actx) return;
+      try {
+        const now = actx.currentTime;
+        const o = actx.createOscillator();
+        const g = actx.createGain();
+        o.type = 'sine';
+        o.frequency.value = 1500;
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.linearRampToValueAtTime(0.03, now + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+        o.connect(g);
+        g.connect(actx.destination);
+        o.start(now);
+        o.stop(now + 0.03);
+      } catch (err) { /* the tick is optional */ }
+    };
+    $('tempo').addEventListener('animationend', (e) => { if (e.animationName === 'notch-flash') $('tempo').classList.remove('flash'); });
     const fdSet = (e) => {
       const r = fader.getBoundingClientRect();
       const span = Math.max(1, r.height - 50); // thumb centre travels from 25 px to height - 25 px
       const f = clamp((e.clientY - r.top - 25) / span, 0, 1);
       let t = tempoRange - f * 2 * tempoRange;
-      if (Math.abs(t) < 0.25) t = 0; // centre detent
+      const was = tempo;
+      if (was === 0 ? Math.abs(t) < SNAP_OUT : Math.abs(t) < SNAP_IN) t = 0;
       setTempo(t);
+      if (was !== 0 && tempo === 0) fdTick();
     };
     fader.addEventListener('pointerdown', (e) => {
       if (!fdOn() || e.button !== 0) return;
@@ -1419,7 +1449,10 @@
       if (t === null) return;
       e.preventDefault();
       e.stopPropagation(); // the fader keeps its own arrow keys (not volume / seek)
-      if (fdOn()) setTempo(t);
+      if (fdOn()) {
+        if (Math.abs(t) < 0.4) t = tempo === 0 ? (t < 0 ? -0.5 : 0.5) : 0; // snaps to 0 near the centre; the next press leaves it
+        setTempo(t);
+      }
     });
     $('tempoVal').addEventListener('click', () => { if (fdOn()) setTempo(0); });
     $('tempoRange').addEventListener('click', () => {
@@ -1448,6 +1481,8 @@
       else if (d < -Math.PI) d += 2 * Math.PI;
       jog.last = a;
       jog.t = clamp(jog.t + (d / (2 * Math.PI)) * 1.8, 0, dur());
+      pockAng += d * 180 / Math.PI; // the finger-nub band turns with the pointer
+      plat.style.setProperty('--pa', `${pockAng.toFixed(1)}deg`);
       seekTo(jog.t);
       plat.style.setProperty('--oa', `${(a * 180 / Math.PI).toFixed(1)}deg`);
     });
