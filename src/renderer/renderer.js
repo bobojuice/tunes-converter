@@ -90,9 +90,40 @@
     const values = lossless ? [16, 24] : bitrateList(s.Format);
     const cur = lossless ? s.BitDepth : shownBitrate(s);
     const at = Math.max(0, values.indexOf(cur));
-    const frac = lossless ? (at === 0 ? 1 / 3 : 2 / 3) : values.length > 1 ? at / (values.length - 1) : 0;
-    const ang = -135 + frac * 270;
+    // one angle function drives both the pointer and the step dots, so they cannot drift apart
+    const stepAng = (i) => {
+      const f = lossless ? (i === 0 ? 1 / 3 : 2 / 3) : values.length > 1 ? i / (values.length - 1) : 0;
+      return -135 + f * 270;
+    };
+    const ang = stepAng(at);
     $('knobPtr').style.setProperty('--ang', ang + 'deg');
+    const ticks = $('knobTicks');
+    const key = `${lossless ? 'L' : 'S'}${values.length}`;
+    if (ticks.dataset.key !== key) {
+      ticks.dataset.key = key;
+      ticks.textContent = '';
+      values.forEach((_, i) => {
+        const a = (stepAng(i) * Math.PI) / 180;
+        const t = document.createElement('b');
+        t.style.left = `${(36 + 33 * Math.sin(a) - 2).toFixed(2)}px`;
+        t.style.top = `${(36 - 33 * Math.cos(a) - 2).toFixed(2)}px`;
+        ticks.appendChild(t);
+      });
+      // end labels sit under the first and last dot
+      const place = (id, i) => {
+        const a = (stepAng(i) * Math.PI) / 180;
+        const x = 36 + 33 * Math.sin(a);
+        const y = 36 - 33 * Math.cos(a);
+        // lossless dots sit high on the sides: the label goes outward beside the dot; lossy dots sit low: label under the dot
+        const side = lossless ? (i === 0 ? -1 : 1) : 0;
+        $(id).style.left = `${(x + side * 6).toFixed(2)}px`;
+        $(id).style.top = `${(y + (lossless ? -4 : 5)).toFixed(2)}px`;
+        $(id).style.transform = side < 0 ? 'translateX(-100%)' : side > 0 ? 'none' : 'translateX(-50%)';
+      };
+      place('knobLo', 0);
+      place('knobHi', values.length - 1);
+    }
+    Array.from(ticks.children).forEach((t, i) => t.classList.toggle('on', i === at));
     $('knobVal').textContent = String(cur);
     $('knobLo').textContent = String(values[0]);
     $('knobHi').textContent = String(values[values.length - 1]);
