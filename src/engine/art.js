@@ -41,6 +41,7 @@ function imageSize(buf) {
       if (buf[i] !== 0xff) { i++; continue; }
       const m = buf[i + 1];
       if (m === 0xff) { i++; continue; }
+      if (m === 0x00 || m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; } // markers without a length field
       if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5)];
       i += 2 + buf.readUInt16BE(i + 2);
     }

@@ -73,7 +73,7 @@ npm test           # tests (need ffmpeg and ffprobe on your PATH or in ./bin)
 npm run dist       # package for the OS you are on, into ./dist
 ```
 
-GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.8.0` collects them
+GitHub Actions builds all three systems (`.github/workflows/build.yml`); pushing a tag like `v2.8.1` collects them
 into a draft release.
 
 ## 📝 Status
