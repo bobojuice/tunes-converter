@@ -18,15 +18,21 @@ class SeenSongs {
 
   // Name of the output file of the first matching song, or null.
   find(key, length) {
+    const e = this.findEntry(key, length);
+    return e ? e.name : null;
+  }
+
+  // Same, with the folder the output file went to ({ name, dir }), so the window can play it.
+  findEntry(key, length) {
     for (const s of this.map.get(key) || []) {
-      if (!length || !s.length || Math.abs(s.length - length) <= LENGTH_TOLERANCE) return s.name;
+      if (!length || !s.length || Math.abs(s.length - length) <= LENGTH_TOLERANCE) return s;
     }
     return null;
   }
 
-  add(key, length, name) {
+  add(key, length, name, dir = '') {
     if (!this.map.has(key)) this.map.set(key, []);
-    this.map.get(key).push({ length, name });
+    this.map.get(key).push({ length, name, dir });
   }
 }
 

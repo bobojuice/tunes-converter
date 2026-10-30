@@ -27,6 +27,19 @@ function folderToOpen(which, s) {
   return resolveDirectory(which === 'in' ? s.In : s.Out);
 }
 
+// 'open' the folder itself, or 'reveal' it in its parent: a macOS .app is a directory that openPath would launch.
+// A symlink with a neutral name that points at an .app counts too, so the resolved target is checked as well.
+function openMode(dir, platform) {
+  if (platform !== 'darwin') return 'open';
+  const isApp = (p) => /\.app[\\/]*$/i.test(String(p));
+  if (isApp(dir)) return 'reveal';
+  try {
+    return isApp(fs.realpathSync(String(dir))) ? 'reveal' : 'open';
+  } catch {
+    return 'open';
+  }
+}
+
 // What was dropped on the window: a folder (becomes the songs folder), music files, or nothing usable.
 // `extensions` is a Set of lower-case extensions such as '.flac'.
 function classifyDrop(paths, extensions) {
@@ -74,4 +87,4 @@ async function withTerminalEvent(emit, work) {
   }
 }
 
-module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, createSlot, withTerminalEvent };
+module.exports = { classifyDrop, resolveDirectory, rendererSettingsChanges, folderToOpen, openMode, createSlot, withTerminalEvent };

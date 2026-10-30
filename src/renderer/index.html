@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: tcplay:; font-src 'self'; media-src tcplay:">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tunes Converter</title>
 <link rel="stylesheet" href="styles.css">
@@ -45,13 +45,25 @@
       <label for="setNameTemplate" data-show="custom">Name pattern</label>
       <input id="setNameTemplate" type="text" data-key="NameTemplate" data-show="custom" spellcheck="false" autocomplete="off">
       <span data-show="custom"></span>
-      <span id="nameHelp" class="help" data-show="custom">Use {artist} {title} {album} {albumartist} {track} {year}. If a tag is missing the original file name is kept.</span>
+      <span id="nameHelp" class="help" data-show="custom">Use {artist} {title} {album} {albumartist} {track} {year} {genre}. If a tag is missing the original file name is kept.</span>
+      <label for="setFolder">Folders by tags</label>
+      <select id="setFolder"><option value="">Off</option><option value="{artist}">Artist</option><option value="{artist}/{album}">Artist / Album</option><option value="{albumartist}/{album}">Album Artist / Album</option><option value="{genre}">Genre</option><option value="{genre}/{artist}">Genre / Artist</option><option value="custom">Custom...</option></select>
+      <label for="setFolderTemplate" data-show="fcustom">Folder pattern</label>
+      <input id="setFolderTemplate" type="text" data-key="FolderTemplate" data-show="fcustom" spellcheck="false" autocomplete="off">
+      <span id="folderHelp" class="help" data-show="fcustom">Up to 3 levels, split with /. Use {artist} {albumartist} {album} {genre} {year}. A missing tag becomes "Unknown Artist" and so on. Replaces the sub-folder layout of "Include sub-folders".</span>
+      <label for="setSecondFormat">Second copy</label>
+      <select id="setSecondFormat" data-key="SecondFormat"><option value="off">Off</option><option value="mp3">MP3</option><option value="m4a">AAC (M4A)</option><option value="flac">FLAC (lossless)</option><option value="wav">WAV (uncompressed)</option><option value="aiff">AIFF (uncompressed, keeps tags)</option><option value="opus">Opus</option></select>
+      <label for="setSecondOut" data-show="second">Second copy to</label>
+      <div class="inline" data-show="second"><input id="setSecondOut" type="text" data-key="SecondOut" spellcheck="false" autocomplete="off" placeholder="Folder for the second copy"><button id="browseSecond" class="btn ghost small" type="button">Browse</button></div>
       <label for="setDup">Duplicate songs</label>
       <select id="setDup" data-key="DuplicateMode"><option value="off">Off</option><option value="warn">Warn in the log</option><option value="skip">Skip extra copies</option></select>
+      <label for="setPlayer">Player check</label>
+      <select id="setPlayer" data-key="PlayerModel"><option value="off">Off</option><option value="cdj2000">CDJ-2000 (original)</option><option value="cdj850">CDJ-850</option><option value="cdj900nxs">CDJ-900NXS</option><option value="cdj2000nxs">CDJ-2000NXS</option><option value="cdj2000nxs2">CDJ-2000NXS2</option><option value="cdj3000">CDJ-3000</option><option value="cdjtour1">CDJ-TOUR1</option><option value="xdj1000mk2">XDJ-1000MK2</option><option value="xdjxz">XDJ-XZ</option><option value="xdjrx3">XDJ-RX3</option></select>
+      <span class="help">Flags files a CDJ/XDJ may not play, from Pioneer's published specs. Nothing is changed. Check your player's firmware. USB sticks: FAT32 (or HFS+ on Mac) is the safest format.</span>
       <label for="setTags">Tags</label>
       <select id="setTags" data-key="TagMode"><option value="keep">Keep all tags</option><option value="clean">Keep main fields only</option><option value="strip">Remove all tags</option></select>
     </div>
-    <label class="check"><input type="checkbox" data-key="Recurse"> Include sub-folders (keeps the same folder layout)</label>
+    <label class="check"><input type="checkbox" data-key="Recurse"> Include sub-folders (keeps the same folder layout unless "Folders by tags" is on)</label>
     <label class="check"><input type="checkbox" data-key="CoverArt"> Keep cover art</label>
     <label class="check"><input type="checkbox" data-key="JoinArtists"> Full artist names ("A;B" becomes "A, B")</label>
     <label class="check"><input type="checkbox" data-key="ClipCheck"> Check for clipping (slower: reads each file once more)</label>
@@ -61,6 +73,9 @@
     <label class="check"><input type="checkbox" data-key="KeepDates"> Keep the original file dates</label>
     <label class="check"><input type="checkbox" data-key="SaveReport"> Save a report file after each run</label>
     <label class="check"><input type="checkbox" data-key="WatchFolder"> Watch the songs folder and convert new files automatically <span id="watchState" class="watch-state" hidden>WATCHING</span></label>
+    <label class="check"><input type="checkbox" data-key="PlayPreview"> Play converted tracks from the results list (preview only, never changes files)</label>
+    <label class="check"><input type="checkbox" data-key="PlatterSpin"> Spin the cover art like a record (instead of the CDJ-3000 look)</label>
+    <label class="check"><input type="checkbox" data-key="PlayNext"> Keep playing the next track in the list</label>
     <label class="check"><input type="checkbox" data-key="OpenWhenDone"> Open the output folder when finished</label>
   </section>
 
@@ -92,15 +107,25 @@
         <button id="browseOut" class="btn mini" type="button">Browse</button>
       </div>
     </div>
-    <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
+    <div class="title-row">
+      <span id="eqIcon" class="eq-ic" aria-hidden="true" hidden><i></i><i></i><i></i></span>
+      <div id="status" class="screen-title" role="status" aria-live="polite">Ready</div>
+      <div id="transport" class="transport" hidden>
+        <button id="playPause" class="play-stop" type="button" aria-label="Pause playback" title="Pause playback" disabled>&#10074;&#10074;</button>
+        <button id="playStop" class="play-stop" type="button" aria-label="Stop playback" title="Stop playback" disabled>&#9632;</button>
+        <span id="playTime" class="play-time">0:00 / 0:00</span>
+        <span class="tp-ctl"><span class="tp-l" aria-hidden="true">VOL</span><input id="vol" class="tp-range" type="range" min="0" max="100" step="1" value="100" aria-label="Volume"></span>
+      </div>
+    </div>
 
     <canvas id="wave" class="wave" role="img" aria-label="Waveform showing conversion progress"></canvas>
 
-    <div class="overview">
+    <div id="overview" class="overview">
       <div class="ov-strip"><canvas id="mini" class="minicv" aria-hidden="true"></canvas></div>
       <div id="ruler" class="ruler" aria-hidden="true"></div>
       <div id="markers" class="markers"></div>
       <span id="ovHead" class="ov-head" aria-hidden="true"></span>
+      <span id="ovTip" class="ov-tip" aria-hidden="true" hidden></span>
     </div>
 
     <div class="readouts">
@@ -134,7 +159,7 @@
         <div class="knob-wrap">
           <button id="knob" class="knob" type="button" aria-label="Bit depth">
             <span id="knobTicks" class="knob-ticks" aria-hidden="true"></span>
-            <span class="cap"></span>
+            <svg class="kgfx" viewBox="18 18 252 252" aria-hidden="true"><defs><linearGradient id="kbev" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.6" stop-color="#fff" stop-opacity="0.05"/><stop offset="1" stop-color="#fff" stop-opacity="0.4"/></linearGradient><radialGradient id="kface" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#1c1e22"/><stop offset="1" stop-color="#0e0f12"/></radialGradient><clipPath id="kfc"><circle cx="144" cy="144" r="92"/></clipPath><filter id="ksoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4"/></filter><mask id="kflutes"><rect x="-24" y="-24" width="336" height="336" fill="#fff"/><g fill="#000" filter="url(#ksoft)"><circle cx="144" cy="14" r="13"/><circle cx="209" cy="31.4" r="13"/><circle cx="256.6" cy="79" r="13"/><circle cx="274" cy="144" r="13"/><circle cx="256.6" cy="209" r="13"/><circle cx="209" cy="256.6" r="13"/><circle cx="144" cy="274" r="13"/><circle cx="79" cy="256.6" r="13"/><circle cx="31.4" cy="209" r="13"/><circle cx="14" cy="144" r="13"/><circle cx="31.4" cy="79" r="13"/><circle cx="79" cy="31.4" r="13"/></g></mask><radialGradient id="kbody" cx="36%" cy="28%" r="85%"><stop offset="0" stop-color="#3a3e45"/><stop offset="0.55" stop-color="#24272c"/><stop offset="1" stop-color="#121417"/></radialGradient></defs><circle cx="144" cy="144" r="126" fill="url(#kbody)" mask="url(#kflutes)"/><circle cx="144" cy="144" r="98" fill="#000" fill-opacity="0.35"/><circle cx="144" cy="144" r="95" fill="none" stroke="url(#kbev)" stroke-width="6"/><circle cx="144" cy="144" r="92" fill="url(#kface)"/><g clip-path="url(#kfc)"><path d="M144,144 L236,144 L235.7,151.38 Z" fill="#fff" fill-opacity="0.091"/><path d="M144,144 L235.78,150.42 L234.97,157.76 Z" fill="#fff" fill-opacity="0.106"/><path d="M144,144 L235.1,156.8 L233.78,164.07 Z" fill="#fff" fill-opacity="0.122"/><path d="M144,144 L233.99,163.13 L232.17,170.28 Z" fill="#fff" fill-opacity="0.138"/><path d="M144,144 L232.44,169.36 L230.12,176.37 Z" fill="#fff" fill-opacity="0.154"/><path d="M144,144 L230.45,175.47 L227.65,182.3 Z" fill="#fff" fill-opacity="0.169"/><path d="M144,144 L228.05,181.42 L224.77,188.04 Z" fill="#fff" fill-opacity="0.183"/><path d="M144,144 L225.23,187.19 L221.51,193.57 Z" fill="#fff" fill-opacity="0.195"/><path d="M144,144 L222.02,192.75 L217.86,198.85 Z" fill="#fff" fill-opacity="0.205"/><path d="M144,144 L218.43,198.08 L213.85,203.87 Z" fill="#fff" fill-opacity="0.213"/><path d="M144,144 L214.48,203.14 L209.51,208.6 Z" fill="#fff" fill-opacity="0.218"/><path d="M144,144 L210.18,207.91 L204.84,213.01 Z" fill="#fff" fill-opacity="0.22"/><path d="M144,144 L205.56,212.37 L199.88,217.09 Z" fill="#fff" fill-opacity="0.219"/><path d="M144,144 L200.64,216.5 L194.64,220.81 Z" fill="#fff" fill-opacity="0.216"/><path d="M144,144 L195.45,220.27 L189.16,224.15 Z" fill="#fff" fill-opacity="0.209"/><path d="M144,144 L190,223.67 L183.46,227.11 Z" fill="#fff" fill-opacity="0.2"/><path d="M144,144 L184.33,226.69 L177.57,229.66 Z" fill="#fff" fill-opacity="0.189"/><path d="M144,144 L178.46,229.3 L171.51,231.79 Z" fill="#fff" fill-opacity="0.176"/><path d="M144,144 L172.43,231.5 L165.32,233.5 Z" fill="#fff" fill-opacity="0.161"/><path d="M144,144 L166.26,233.27 L159.03,234.76 Z" fill="#fff" fill-opacity="0.146"/><path d="M144,144 L159.98,234.6 L152.66,235.59 Z" fill="#fff" fill-opacity="0.13"/><path d="M144,144 L153.62,235.5 L146.25,235.97 Z" fill="#fff" fill-opacity="0.114"/><path d="M144,144 L147.21,235.94 L139.83,235.91 Z" fill="#fff" fill-opacity="0.098"/><path d="M144,144 L140.79,235.94 L133.43,235.39 Z" fill="#fff" fill-opacity="0.083"/><path d="M144,144 L134.38,235.5 L127.08,234.43 Z" fill="#fff" fill-opacity="0.07"/><path d="M144,144 L128.02,234.6 L120.81,233.03 Z" fill="#fff" fill-opacity="0.058"/><path d="M144,144 L121.74,233.27 L114.66,231.19 Z" fill="#fff" fill-opacity="0.047"/><path d="M144,144 L115.57,231.5 L108.64,228.94 Z" fill="#fff" fill-opacity="0.039"/><path d="M144,144 L109.54,229.3 L102.81,226.26 Z" fill="#fff" fill-opacity="0.032"/><path d="M144,144 L103.67,226.69 L97.17,223.19 Z" fill="#fff" fill-opacity="0.027"/><path d="M144,144 L98,223.67 L91.76,219.73 Z" fill="#fff" fill-opacity="0.023"/><path d="M144,144 L92.55,220.27 L86.6,215.9 Z" fill="#fff" fill-opacity="0.021"/><path d="M144,144 L87.36,216.5 L81.73,211.72 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L82.44,212.37 L77.16,207.21 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L77.82,207.91 L72.91,202.4 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L73.52,203.14 L69.01,197.29 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L69.57,198.08 L65.47,191.93 Z" fill="#fff" fill-opacity="0.021"/><path d="M144,144 L65.98,192.75 L62.32,186.34 Z" fill="#fff" fill-opacity="0.022"/><path d="M144,144 L62.77,187.19 L59.57,180.54 Z" fill="#fff" fill-opacity="0.025"/><path d="M144,144 L59.95,181.42 L57.22,174.56 Z" fill="#fff" fill-opacity="0.029"/><path d="M144,144 L57.55,175.47 L55.3,168.43 Z" fill="#fff" fill-opacity="0.035"/><path d="M144,144 L55.56,169.36 L53.82,162.18 Z" fill="#fff" fill-opacity="0.043"/><path d="M144,144 L54.01,163.13 L52.77,155.85 Z" fill="#fff" fill-opacity="0.052"/><path d="M144,144 L52.9,156.8 L52.16,149.46 Z" fill="#fff" fill-opacity="0.064"/><path d="M144,144 L52.22,150.42 L52.01,143.04 Z" fill="#fff" fill-opacity="0.076"/><path d="M144,144 L52,144 L52.3,136.62 Z" fill="#fff" fill-opacity="0.091"/><path d="M144,144 L52.22,137.58 L53.03,130.24 Z" fill="#fff" fill-opacity="0.106"/><path d="M144,144 L52.9,131.2 L54.22,123.93 Z" fill="#fff" fill-opacity="0.122"/><path d="M144,144 L54.01,124.87 L55.83,117.72 Z" fill="#fff" fill-opacity="0.138"/><path d="M144,144 L55.56,118.64 L57.88,111.63 Z" fill="#fff" fill-opacity="0.154"/><path d="M144,144 L57.55,112.53 L60.35,105.7 Z" fill="#fff" fill-opacity="0.169"/><path d="M144,144 L59.95,106.58 L63.23,99.96 Z" fill="#fff" fill-opacity="0.183"/><path d="M144,144 L62.77,100.81 L66.49,94.43 Z" fill="#fff" fill-opacity="0.195"/><path d="M144,144 L65.98,95.25 L70.14,89.15 Z" fill="#fff" fill-opacity="0.205"/><path d="M144,144 L69.57,89.92 L74.15,84.13 Z" fill="#fff" fill-opacity="0.213"/><path d="M144,144 L73.52,84.86 L78.49,79.4 Z" fill="#fff" fill-opacity="0.218"/><path d="M144,144 L77.82,80.09 L83.16,74.99 Z" fill="#fff" fill-opacity="0.22"/><path d="M144,144 L82.44,75.63 L88.12,70.91 Z" fill="#fff" fill-opacity="0.219"/><path d="M144,144 L87.36,71.5 L93.36,67.19 Z" fill="#fff" fill-opacity="0.216"/><path d="M144,144 L92.55,67.73 L98.84,63.85 Z" fill="#fff" fill-opacity="0.209"/><path d="M144,144 L98,64.33 L104.54,60.89 Z" fill="#fff" fill-opacity="0.2"/><path d="M144,144 L103.67,61.31 L110.43,58.34 Z" fill="#fff" fill-opacity="0.189"/><path d="M144,144 L109.54,58.7 L116.49,56.21 Z" fill="#fff" fill-opacity="0.176"/><path d="M144,144 L115.57,56.5 L122.68,54.5 Z" fill="#fff" fill-opacity="0.161"/><path d="M144,144 L121.74,54.73 L128.97,53.24 Z" fill="#fff" fill-opacity="0.146"/><path d="M144,144 L128.02,53.4 L135.34,52.41 Z" fill="#fff" fill-opacity="0.13"/><path d="M144,144 L134.38,52.5 L141.75,52.03 Z" fill="#fff" fill-opacity="0.114"/><path d="M144,144 L140.79,52.06 L148.17,52.09 Z" fill="#fff" fill-opacity="0.098"/><path d="M144,144 L147.21,52.06 L154.57,52.61 Z" fill="#fff" fill-opacity="0.083"/><path d="M144,144 L153.62,52.5 L160.92,53.57 Z" fill="#fff" fill-opacity="0.07"/><path d="M144,144 L159.98,53.4 L167.19,54.97 Z" fill="#fff" fill-opacity="0.058"/><path d="M144,144 L166.26,54.73 L173.34,56.81 Z" fill="#fff" fill-opacity="0.047"/><path d="M144,144 L172.43,56.5 L179.36,59.06 Z" fill="#fff" fill-opacity="0.039"/><path d="M144,144 L178.46,58.7 L185.19,61.74 Z" fill="#fff" fill-opacity="0.032"/><path d="M144,144 L184.33,61.31 L190.83,64.81 Z" fill="#fff" fill-opacity="0.027"/><path d="M144,144 L190,64.33 L196.24,68.27 Z" fill="#fff" fill-opacity="0.023"/><path d="M144,144 L195.45,67.73 L201.4,72.1 Z" fill="#fff" fill-opacity="0.021"/><path d="M144,144 L200.64,71.5 L206.27,76.28 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L205.56,75.63 L210.84,80.79 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L210.18,80.09 L215.09,85.6 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L214.48,84.86 L218.99,90.71 Z" fill="#fff" fill-opacity="0.02"/><path d="M144,144 L218.43,89.92 L222.53,96.07 Z" fill="#fff" fill-opacity="0.021"/><path d="M144,144 L222.02,95.25 L225.68,101.66 Z" fill="#fff" fill-opacity="0.022"/><path d="M144,144 L225.23,100.81 L228.43,107.46 Z" fill="#fff" fill-opacity="0.025"/><path d="M144,144 L228.05,106.58 L230.78,113.44 Z" fill="#fff" fill-opacity="0.029"/><path d="M144,144 L230.45,112.53 L232.7,119.57 Z" fill="#fff" fill-opacity="0.035"/><path d="M144,144 L232.44,118.64 L234.18,125.82 Z" fill="#fff" fill-opacity="0.043"/><path d="M144,144 L233.99,124.87 L235.23,132.15 Z" fill="#fff" fill-opacity="0.052"/><path d="M144,144 L235.1,131.2 L235.84,138.54 Z" fill="#fff" fill-opacity="0.064"/><path d="M144,144 L235.78,137.58 L235.99,144.96 Z" fill="#fff" fill-opacity="0.076"/><circle cx="144" cy="144" r="10" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="13" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="16" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="19" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="22" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="25" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="28" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="31" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="34" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="37" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="40" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="43" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="46" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="49" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="52" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="55" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="58" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="61" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="64" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="67" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="70" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="73" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="76" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="79" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="82" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="85" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="88" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/><circle cx="144" cy="144" r="91" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="0.7"/></g></svg>
             <span id="knobPtr" class="ptr"></span>
             <span id="knobVal" class="kval"></span>
           </button>
@@ -157,9 +182,21 @@
     </div>
 
     <div class="platter-col">
+      <div class="jog">
       <div id="track" class="platter" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="ring-mask"></div>
-        <div class="deck-face"></div>
+        <div class="cdj-vinyl" aria-hidden="true"></div>
+        <div class="spin" aria-hidden="true">
+          <div class="deck-face"></div>
+          <div id="art" class="art"></div>
+          <span class="spin-dot"></span>
+        </div>
+        <div id="cdjPockets" class="cdj-pockets" aria-hidden="true"></div>
+        <div class="cdj-orbit" aria-hidden="true"><i></i></div>
+        <div class="cdj-rim" aria-hidden="true"></div>
+        <div class="cdj-head" aria-hidden="true"></div>
+        <span class="cdj-cue" aria-hidden="true" hidden></span>
+        <div class="sheen" aria-hidden="true"></div>
         <div class="marker"><span></span></div>
         <div class="hub">
           <span id="hubLabel" class="hub-l">READY</span>
@@ -167,6 +204,19 @@
           <span id="count" class="hub-c">0 / 0</span>
         </div>
         <div id="fill" class="fill" aria-hidden="true"></div>
+      </div>
+      <div id="tempoFader" class="fader off">
+        <button id="tempoVal" class="fd-val" type="button" tabindex="-1" title="Reset tempo to 0" aria-label="Reset tempo to 0">+0.0%</button>
+        <div id="tempo" class="fd-track" role="slider" tabindex="0" aria-label="Tempo" aria-orientation="vertical" aria-valuemin="-10" aria-valuemax="10" aria-valuenow="0" aria-valuetext="+0.0 percent" aria-disabled="true" title="Tempo (double-click to reset)">
+          <span class="fd-lab fd-plus" aria-hidden="true">+</span>
+          <span class="fd-lab fd-minus" aria-hidden="true">&minus;</span>
+          <span class="fd-slot" aria-hidden="true"></span>
+          <span id="fdTicks" class="fd-ticks" aria-hidden="true"></span>
+          <span class="fd-notch" aria-hidden="true"></span>
+          <span class="fd-thumb" aria-hidden="true"></span>
+        </div>
+        <button id="tempoRange" class="fd-range" type="button" tabindex="-1" title="Tempo range (click to change)" aria-label="Tempo range plus or minus 10 percent. Click to change.">&plusmn;10</button>
+      </div>
       </div>
       <div class="actions">
         <button id="start" class="ringbtn go" type="button" aria-label="Start converting">START</button>

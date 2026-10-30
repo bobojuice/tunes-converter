@@ -10,12 +10,13 @@ const MAX_DEPTH = 20;
 // for `stableMs`. Each file is handled once per watch session. While `isBusy()` is true, ready files wait and are
 // handed over afterwards in one list. fs.watch is only a hint to look sooner; if it fails (or is not supported for
 // the folder) a scan every `pollMs` finds the files instead.
-function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false, onFiles, onLog = () => {}, stableMs = 2000, pollMs = 3000, tickMs = 500 }) {
+function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false, onFiles, onLog = () => {}, onMissing = () => {}, stableMs = 2000, pollMs = 3000, tickMs = 500 }) {
   // Canonical keys (symlinks, junctions and 8.3 names resolved) so another spelling of the same place compares equal.
   const fold = (p) => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p);
   const key = (p) => fold(canon(p).replace(/[\\/]+$/, ''));
-  const outAbs = outDir ? key(outDir) : '';
-  const inOut = (p) => { if (!outAbs) return false; const k = key(p); return k === outAbs || k.startsWith(outAbs + path.sep); };
+  // `outDir` is one output folder or a list of them (main output and second output); none of them is ever watched.
+  const outAbs = [].concat(outDir || []).filter(Boolean).map(key);
+  const inOut = (p) => { if (!outAbs.length) return false; const k = key(p); return outAbs.some((o) => k === o || k.startsWith(o + path.sep)); };
 
   const known = new Set(); // handled, or present before the watch started
   const pending = new Map(); // path -> { size, since }
@@ -25,6 +26,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
   let stopped = false;
   let lastScan = 0;
   let hint = false;
+  let missing = false;
 
   function walk(current, depth, out) {
     let entries;
@@ -39,8 +41,47 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
 
   for (const f of walk(dir, 0, [])) known.add(key(f));
 
+  const dirExists = () => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
+
+  function closeFsw() { if (fsw) { try { fsw.close(); } catch { /* already closed */ } fsw = null; } }
+
+  function startFsw() {
+    try {
+      // Recursive watching is native on Windows and macOS (and recent Node on Linux); if it throws, polling still covers it.
+      fsw = fs.watch(dir, { recursive: Boolean(recurse) }, () => { hint = true; });
+      fsw.on('error', () => {
+        closeFsw();
+        if (!dirExists()) { goMissing(); return; }
+        onLog('Folder watching fell back to checking every few seconds.');
+      });
+    } catch {
+      fsw = null;
+      if (dirExists()) onLog('Folder watching fell back to checking every few seconds.');
+    }
+  }
+
+  // The songs folder disappeared (deleted, drive unmounted): stop quietly, tell the owner once, resume if it returns.
+  function goMissing() {
+    if (missing) return;
+    missing = true;
+    closeFsw();
+    pending.clear();
+    ready.length = 0;
+    onMissing(true);
+  }
+
+  function comeBack() {
+    missing = false;
+    known.clear(); // whatever is in the returning folder is old, not new
+    for (const f of walk(dir, 0, [])) known.add(key(f));
+    startFsw();
+    onMissing(false);
+  }
+
   function scan() {
     lastScan = Date.now();
+    if (!dirExists()) { goMissing(); return; }
+    if (missing) comeBack();
     for (const f of walk(dir, 0, [])) if (!known.has(key(f)) && !pending.has(f)) pending.set(f, { size: -1, since: 0 });
   }
 
@@ -68,14 +109,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
     }
   }
 
-  try {
-    // Recursive watching is native on Windows and macOS (and recent Node on Linux); if it throws, polling still covers it.
-    fsw = fs.watch(dir, { recursive: Boolean(recurse) }, () => { hint = true; });
-    fsw.on('error', () => { try { fsw.close(); } catch { /* already closed */ } fsw = null; onLog('Folder watching fell back to checking every few seconds.'); });
-  } catch {
-    fsw = null;
-    onLog('Folder watching fell back to checking every few seconds.');
-  }
+  startFsw();
   timer = setInterval(tick, tickMs);
   if (timer.unref) timer.unref();
 
@@ -83,7 +117,7 @@ function createWatcher({ dir, recurse = false, outDir = '', isBusy = () => false
     stop() {
       stopped = true;
       clearInterval(timer);
-      if (fsw) { try { fsw.close(); } catch { /* already closed */ } fsw = null; }
+      closeFsw();
       pending.clear();
       ready.length = 0;
     }
@@ -102,4 +136,28 @@ function watchPlan(s) {
   return { ok: true, reason: '' };
 }
 
-module.exports = { createWatcher, watchPlan };
+// Output folders the watch must ignore: the main output, plus the second output only while the second copy is on.
+// A retained SecondOut value with SecondFormat 'off' is not an output, so it must not hide new songs.
+function watchOutDirs(s) {
+  // Same eligibility as the batch: a second copy folder equal to the songs or output folder is switched off there.
+  const second = s.SecondFormat && s.SecondFormat !== 'off' && typeof s.SecondOut === 'string' && s.SecondOut.trim()
+    && !(s.In && sameFolder(s.SecondOut, s.In)) && !(s.Out && sameFolder(s.SecondOut, s.Out)) ? [s.SecondOut] : [];
+  return [s.Out, ...second].filter(Boolean);
+}
+
+// What a settings sync should do with the watcher. `cur` = { hasWatcher, key, missing } of the running one.
+// -> { action: 'stop' | 'keep' | 'start', key, info: { active, reason } }
+// While the songs folder is missing (and the rest is valid) a recovery watcher is kept or started, so the watch
+// resumes by itself when the folder comes back, also after settings changes in that state.
+function watchAction(s, cur = {}) {
+  const plan = watchPlan(s);
+  const recover = !plan.ok && plan.reason === 'songs folder missing' && Boolean(s.Out) && !sameFolder(s.In, s.Out);
+  if (!plan.ok && !recover) return { action: 'stop', key: '', info: { active: false, reason: plan.reason } };
+  const key = JSON.stringify([s.In, s.Out, watchOutDirs(s), Boolean(s.Recurse)]);
+  const gone = recover || Boolean(cur.missing);
+  const info = gone ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' };
+  if (cur.hasWatcher && cur.key === key) return { action: 'keep', key, info };
+  return { action: 'start', key, info: recover ? info : { active: true, reason: '' } };
+}
+
+module.exports = { createWatcher, watchPlan, watchOutDirs, watchAction };

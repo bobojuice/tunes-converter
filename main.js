@@ -1,20 +1,28 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, screen, protocol } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
+const playback = require('./src/engine/playback');
+
+// Must run before the app is ready (and also when the test harness skips start()).
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'tcplay',
+  privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true }
+}]);
 const settings = require('./src/engine/settings');
 const { findTools, hasMp3Encoder } = require('./src/engine/tools');
 const { runBatch } = require('./src/engine/batch');
 const { buildReport, writeReport } = require('./src/engine/report');
 const presetshare = require('./src/engine/presetshare');
-const { createWatcher, watchPlan } = require('./src/engine/watcher');
+const { createWatcher, watchAction, watchOutDirs } =require('./src/engine/watcher');
 const { downloadFfmpeg } = require('./src/engine/download');
 
 // Legacy build only: old Macs draw the window twice (ghosted layers) with GPU acceleration, so use software drawing.
 app.disableHardwareAcceleration();
 
 let win = null;
-const { rendererSettingsChanges, folderToOpen, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
+const { rendererSettingsChanges, folderToOpen, openMode, createSlot, classifyDrop, withTerminalEvent } = require('./src/engine/guards');
 const { EXTENSIONS } = require('./src/engine/batch');
 const { fetchLatest } = require('./src/engine/update');
 
@@ -107,6 +115,7 @@ function saveRunReport(s, results, startedAt, r, onEvent) {
 // ---- watch folder: new music files in the songs folder are converted by the same pipeline ----
 let watcher = null;
 let watchKey = '';
+let watchMissing = false; // the songs folder vanished while watching (it may come back)
 
 // What the window shows: is the watch really running, and if the setting is on but it cannot run, why not.
 let watchInfo = { active: false, reason: '' };
@@ -122,27 +131,32 @@ function stopWatcher() {
   if (watcher) watcher.stop();
   watcher = null;
   watchKey = '';
+  watchMissing = false;
 }
 
 function syncWatcher() {
   const s = current();
-  const plan = watchPlan(s);
-  if (!plan.ok) { stopWatcher(); setWatchInfo({ active: false, reason: plan.reason }); return; }
-  setWatchInfo({ active: true, reason: '' });
-  const key = JSON.stringify([s.In, s.Out, s.Recurse]);
-  if (watcher && key === watchKey) return;
+  const act = watchAction(s, { hasWatcher: Boolean(watcher), key: watchKey, missing: watchMissing });
+  if (act.action === 'stop') { stopWatcher(); setWatchInfo(act.info); return; }
+  if (act.action === 'keep') { setWatchInfo(act.info); return; } // also keeps a recovery watcher while the folder is missing
   stopWatcher();
-  watchKey = key;
+  setWatchInfo(act.info);
+  watchKey = act.key;
+  watchMissing = !act.info.active;
   watcher = createWatcher({
-    dir: s.In, recurse: s.Recurse, outDir: s.Out,
+    dir: s.In, recurse: s.Recurse, outDir: watchOutDirs(s),
     isBusy: () => batchSlot.busy,
     onLog: appendLog,
+    onMissing: (gone) => {
+      watchMissing = gone;
+      setWatchInfo(gone ? { active: false, reason: 'songs folder missing' } : { active: true, reason: '' });
+    },
     onFiles: async (files) => {
       const ctrl = batchSlot.take();
       if (!ctrl) return; // cannot happen after isBusy(); the files stay handled rather than looping
       try {
         for (const f of files) send('batch:event', { type: 'message', text: `Watching: new file ${path.basename(f)}`, level: 'info' });
-        await executeBatch({ ctrl, s: current(), inputs: files, resetLog: false, watch: true });
+        await executeBatch({ ctrl, s: current(), inputs: files.map((f) => ({ full: f, rel: path.dirname(path.relative(s.In, f)).replace(/^\.$/, '') })), resetLog: false, watch: true });
       } catch (err) {
         send('batch:event', { type: 'message', text: `ERROR: ${err.message}`, level: 'error' });
       } finally {
@@ -152,7 +166,53 @@ function syncWatcher() {
   });
 }
 
+// ---- playback preview: a decoded temp WAV, served only through tcplay://track/<token>; no music file is touched ----
+let player = null;
+const getPlayer = () => player || (player = playback.createPlayer());
+const disposePlayer = () => { if (player) player.dispose(); };
+
+async function tcplayHandler(request) {
+  const deny = (status) => new Response(null, { status });
+  try {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return deny(405);
+    const p = getPlayer();
+    const d = playback.serveDecision(request.url, (t) => p.resolveToken(t), (t) => p.resolveArt(t));
+    if (!d.ok) return deny(d.status);
+    if (!p.tempRoot || !playback.insideRoot(p.tempRoot, d.file)) return deny(404);
+    const size = fs.statSync(d.file).size;
+    const r = playback.rangeFor(size, request.headers.get('range'));
+    const headers = new Headers({
+      'Content-Type': d.kind === 'image' ? 'image/jpeg' : 'audio/wav', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+    });
+    if (r.status === 416) { headers.set('Content-Range', `bytes */${size}`); return new Response(null, { status: 416, headers }); }
+    headers.set('Content-Length', String(r.end - r.start + 1));
+    if (r.status === 206) headers.set('Content-Range', `bytes ${r.start}-${r.end}/${size}`);
+    if (request.method === 'HEAD' || size === 0) return new Response(null, { status: r.status, headers });
+    const body = Readable.toWeb(fs.createReadStream(d.file, { start: r.start, end: r.end }));
+    return new Response(body, { status: r.status, headers });
+  } catch {
+    return deny(404);
+  }
+}
+
 function registerIpc() {
+  ipcMain.handle('play:prepare', async (event, name) => {
+    if (!trusted(event)) return { ok: false };
+    const ticket = getPlayer().reserve(); // before any await: the newest click wins, and Stop voids it
+    const s = current();
+    if (!s.PlayPreview) return { ok: false, error: 'Playback preview is off (MENU).' };
+    const t = (await toolState(s)).tools;
+    if (!t) return { ok: false, error: 'ffmpeg not found.' };
+    const src = playback.resolvePlayable(name, s.Out);
+    if (!src) return { ok: false, error: 'That file is not in the output folder any more.' };
+    const r = await getPlayer().prepare(t.ffmpeg, src, ticket);
+    return r.ok ? { ok: true, url: `tcplay://track/${r.token}`, artUrl: r.hasArt ? `tcplay://art/${r.token}` : '', peaks: r.peaks, rms: r.rms, low: r.low, perSec: r.perSec, duration: r.duration } : { ok: false, cancelled: r.cancelled, error: r.error };
+  });
+
+  ipcMain.handle('play:stop', (event) => {
+    if (trusted(event)) getPlayer().stop();
+  });
+
   ipcMain.handle('app:getState', async (event) => {
     if (!trusted(event)) return null;
     const s = current();
@@ -315,9 +375,12 @@ function registerIpc() {
     if (!trusted(event)) return false;
     const dir = folderToOpen(which, current());
     if (!dir) return false;
-    // Reveal only: openPath would launch a macOS .app bundle (a directory) through LaunchServices.
-    shell.showItemInFolder(dir);
-    return true;
+    // Open the folder itself; a macOS .app bundle would be launched by openPath, so that one is only revealed.
+    if (openMode(dir, process.platform) === 'reveal') {
+      shell.showItemInFolder(dir);
+      return true;
+    }
+    return (await shell.openPath(dir)) === '';
   });
 
   ipcMain.handle('shell:openExternal', (event, url) => {
@@ -366,7 +429,7 @@ function createWindow() {
       settings.save(paths().settings, base(), { WinW: b.width, WinH: b.height });
     } catch { /* remembering the size is best effort */ }
   });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; disposePlayer(); });
   win.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   return win;
 }
@@ -383,10 +446,13 @@ function start() {
   app.on('window-all-closed', () => {
     stopWatcher();
     batchSlot.abort();
+    disposePlayer();
     app.quit();
   });
-  app.on('before-quit', stopWatcher);
+  app.on('before-quit', () => { stopWatcher(); disposePlayer(); });
+  playback.sweepStale();
   return app.whenReady().then(() => {
+    protocol.handle('tcplay', tcplayHandler);
     const w = createWindow();
     syncWatcher();
     app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

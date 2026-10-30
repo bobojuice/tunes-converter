@@ -10,11 +10,13 @@ function cell(value) {
   return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
+// A run with a second copy adds a last column 'output' ('main' or 'second'); other reports keep the original columns.
 const COLUMNS = ['status', 'file', 'notes', 'health', 'peak_db', 'duplicate'];
 
 // `results` are the batch 'result' events. Returns CSV text (CRLF rows, UTF-8 BOM so Excel reads accents correctly).
 function buildReport(results, { startedAt, summary, format } = {}) {
-  const lines = [COLUMNS.join(',')];
+  const withOutput = (results || []).some((r) => r.second);
+  const lines = [(withOutput ? [...COLUMNS, 'output'] : COLUMNS).join(',')];
   for (const r of results || []) {
     const note = r.note || '';
     const peak = typeof r.peak === 'number' && Number.isFinite(r.peak) ? r.peak.toFixed(1) : ''; // a real number, safe as is
@@ -24,7 +26,8 @@ function buildReport(results, { startedAt, summary, format } = {}) {
       cell(note),
       r.health ? 'yes' : 'no',
       peak,
-      r.duplicate || /duplicate/i.test(note) ? 'yes' : 'no'
+      r.duplicate || /duplicate/i.test(note) ? 'yes' : 'no',
+      ...(withOutput ? [r.second ? 'second' : 'main'] : [])
     ].join(','));
   }
   lines.push('');

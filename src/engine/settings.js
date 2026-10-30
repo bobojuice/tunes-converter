@@ -2,7 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const { FORMAT_KEYS } = require('./formats');
-const { DEFAULT_TEMPLATE, validTemplate } = require('./naming');
+const { PLAYER_KEYS } = require('./players');
+const { DEFAULT_TEMPLATE, validTemplate, validFolderTemplate } = require('./naming');
 
 const TAG_MODES = ['keep', 'clean', 'strip']; // keep everything | keep the main fields only | no tags at all
 
@@ -21,6 +22,9 @@ function defaults(desktopDir) {
     Format: 'mp3',
     BitDepth: 16,
     NameTemplate: DEFAULT_TEMPLATE,
+    FolderTemplate: '',
+    SecondOut: '',
+    SecondFormat: 'off',
     TagMode: 'keep',
     Recurse: false,
     CoverArt: true,
@@ -33,6 +37,10 @@ function defaults(desktopDir) {
     KeepDates: true,
     SaveReport: false,
     WatchFolder: false,
+    PlayPreview: true,
+    PlatterSpin: false,
+    PlayNext: true,
+    PlayerModel: 'off',
     Presets: [],
     OpenWhenDone: false,
     WinW: 820,
@@ -42,8 +50,8 @@ function defaults(desktopDir) {
 }
 
 // A preset remembers the conversion options only, never folders, window size or the ffmpeg location.
-const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'TagMode',
-  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates'];
+const PRESET_KEYS = ['Format', 'Bitrate', 'SampleRate', 'QualityCheck', 'MinKbps', 'BitDepth', 'NameTemplate', 'FolderTemplate', 'TagMode',
+  'Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'DuplicateMode', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'PlayerModel'];
 const MAX_PRESETS = 20;
 const MAX_PRESET_NAME = 40;
 
@@ -80,8 +88,16 @@ function merge(base, raw) {
   if ([16, 24].includes(Number(raw.BitDepth))) s.BitDepth = Number(raw.BitDepth);
   if (TAG_MODES.includes(raw.TagMode)) s.TagMode = raw.TagMode;
   if (validTemplate(raw.NameTemplate)) s.NameTemplate = raw.NameTemplate.trim();
+  if (typeof raw.FolderTemplate === 'string') {
+    const t = raw.FolderTemplate.trim();
+    if (!t) s.FolderTemplate = ''; // empty = off; an invalid template is ignored
+    else if (validFolderTemplate(t)) s.FolderTemplate = t;
+  }
+  if (typeof raw.SecondOut === 'string' && raw.SecondOut.length <= 1024 && !raw.SecondOut.includes('\0')) s.SecondOut = raw.SecondOut.trim();
+  if (raw.SecondFormat === 'off' || FORMAT_KEYS.includes(raw.SecondFormat)) s.SecondFormat = raw.SecondFormat;
   if (MODES.includes(raw.DuplicateMode)) s.DuplicateMode = raw.DuplicateMode;
-  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder']) {
+  if (raw.PlayerModel === 'off' || PLAYER_KEYS.includes(raw.PlayerModel)) s.PlayerModel = raw.PlayerModel;
+  for (const k of ['Recurse', 'CoverArt', 'JoinArtists', 'ClipCheck', 'OpenWhenDone', 'CopyMode', 'HealthCheck', 'ArtResize', 'KeepDates', 'SaveReport', 'WatchFolder', 'PlayPreview', 'PlatterSpin', 'PlayNext']) {
     if (typeof raw[k] === 'boolean') s[k] = raw[k];
   }
   if (Array.isArray(raw.Presets)) s.Presets = cleanPresets(raw.Presets);

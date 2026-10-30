@@ -9,7 +9,8 @@ const { FORMATS } = require('./formats');
 const { checkClipping } = require('./clipping');
 const { songKey } = require('./duplicates');
 const { checkHealth } = require('./health');
-const { findArt, resizeArt } = require('./art');
+const { findArt, resizeArt, pictureMetadata } = require('./art');
+const { playerNote } = require('./players');
 
 async function probe(ffprobe, file, signal) {
   const r = await run(ffprobe, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { signal });
@@ -57,7 +58,9 @@ function keepDates(src, dest) {
 }
 
 // Converts one file. Returns { status: 'OK'|'WARN'|'LOW'|'FAKE'|'SKIP'|'FAIL'|'STOP', name, note }.
-async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus, seen }) {
+// `folderFor(fields)` (optional) picks the output folder from the tags once they are read: it returns
+// { outDir, allocator } and replaces the `outDir` / `allocator` given here.
+async function convertOne({ file, outDir, tools, settings, allocator, signal, onStatus, seen, folderFor }) {
   const baseName = path.basename(file);
   if (signal.aborted) return { status: 'STOP' };
 
@@ -78,8 +81,10 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     artist, title, albumartist: albumArtist,
     album: pickTag(tagSets, 'album'),
     track: trackNumber(pickTag(tagSets, 'track')),
-    year: yearOf(pickTag(tagSets, 'date') || pickTag(tagSets, 'year'))
+    year: yearOf(pickTag(tagSets, 'date') || pickTag(tagSets, 'year')),
+    genre: pickTag(tagSets, 'genre')
   };
+  if (folderFor) ({ outDir, allocator } = folderFor(fields));
   const fromTemplate = applyTemplate(settings.NameTemplate || DEFAULT_TEMPLATE, fields);
 
   const stem = buildName({ artist, title, fallbackBase: path.parse(baseName).name, outDir, base: fromTemplate || path.parse(baseName).name });
@@ -87,8 +92,9 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   // The same song from another file or format (not the "Name (2)" de-duplication, which is about file names).
   const key = settings.DuplicateMode === 'off' || !seen ? '' : songKey(artist, title);
   const length = Number(info.format && info.format.duration) || 0;
-  const twin = key ? seen.find(key, length) : null;
-  if (twin && settings.DuplicateMode === 'skip') return { status: 'SKIP', name: baseName, note: `same song as ${twin}`, duplicate: true };
+  const twinEntry = key ? seen.findEntry(key, length) : null;
+  const twin = twinEntry ? twinEntry.name : null;
+  if (twin && settings.DuplicateMode === 'skip') return { status: 'SKIP', name: baseName, note: `same song as ${twin}`, duplicate: true, twinFile: path.join(twinEntry.dir || outDir, twin) };
   const { name, duplicate } = allocator.allocate(stem);
   const dupNote = duplicate ? 'duplicate name; ' : '';
   const fmt = FORMATS[settings.Format] || FORMATS.mp3;
@@ -96,7 +102,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const dest = path.join(outDir, outName);
   try {
     if (fs.statSync(dest).isDirectory()) return { status: 'FAIL', name: baseName, note: `a folder named ${outName} is in the way` };
-    return { status: 'SKIP', name: outName, note: 'already exists' };
+    return { status: 'SKIP', name: outName, note: 'already exists', twinFile: dest };
   } catch { /* nothing there yet */ }
 
   let quality = null;
@@ -127,6 +133,9 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     healthMsg = h.msg; // flagged only, the file is converted as usual
   }
 
+  if (folderFor) { // created only when a file is really going in
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch (err) { return { status: 'FAIL', name: baseName, note: `cannot create folder: ${err.message}` }; }
+  }
   const part = `${dest}.${crypto.randomBytes(4).toString('hex')}.part`;
   const depth = settings.BitDepth === 24 ? 24 : 16;
   const copy = settings.CopyMode !== false && canCopy(fmt, audio, info.format, depth); // same codec: only name, tags and cover change
@@ -134,6 +143,7 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
   const coverOk = keepCover && fmt !== FORMATS.opus && !fmt.noCover; // the Opus and WAV containers take no cover art this way
   let artFile = null;
   let artCleanup = () => {};
+  const metaFile = `${part}.meta`;
   const args = ['-v', 'error', '-y', '-i', file];
   try {
     const art = coverOk && settings.ArtResize !== false ? findArt(info) : null;
@@ -144,11 +154,31 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
       if (signal.aborted) return { status: 'STOP' };
       artFile = small.file;
     }
-    if (artFile) args.push('-i', artFile);
+    const tagMode = settings.TagMode || 'keep';
+    // Opus: the ogg muxer drops attached pictures, so the cover goes in as a METADATA_BLOCK_PICTURE tag via a temp ffmetadata input.
+    let metaIdx = -1;
+    const opusArt = keepCover && fmt === FORMATS.opus && tagMode !== 'strip' ? findArt(info) : null;
+    if (opusArt) {
+      try {
+        if (onStatus) onStatus(`Checking cover art - ${baseName}`);
+        const got = await resizeArt({ ffmpeg: tools.ffmpeg, input: file, art: opusArt, base: part, signal, resize: settings.ArtResize !== false });
+        artCleanup = got.cleanup;
+        if (signal.aborted) return { status: 'STOP' };
+        const img = got.file || got.raw;
+        const text = img ? pictureMetadata(fs.readFileSync(img)) : null;
+        if (text) {
+          fs.writeFileSync(metaFile, text);
+          metaIdx = 1;
+          if (got.file) artFile = got.file;
+        }
+      } catch { metaIdx = -1; /* never fail the conversion because of art */ }
+    }
+    if (artFile && metaIdx < 0) args.push('-i', artFile);
+    if (metaIdx > 0) args.push('-i', metaFile);
     args.push('-map', '0:a:0');
     if (coverOk) args.push('-map', artFile ? '1:v:0' : '0:v?');
-    const tagMode = settings.TagMode || 'keep';
     args.push('-map_metadata', tagMode === 'keep' ? '0' : '-1');
+    if (metaIdx > 0) args.push('-map_metadata', String(metaIdx));
     if (copy) {
       args.push('-c', 'copy');
       if (coverOk) args.push('-disposition:v', 'attached_pic');
@@ -186,17 +216,25 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
     if (settings.KeepDates !== false) keepDates(file, dest);
     let note = dupNote + (copy ? 'copied (no re-encode)' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${depth}-bit` : 'lossless');
-    if (artFile) note += ' | cover art resized';
-    if (quality && quality.msg) note += ` | ${quality.msg}`;
+    if (artFile) note += ' | cover art resized';    if (quality && quality.msg) note += ` | ${quality.msg}`;
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
     if (healthMsg) note += ` | ${healthMsg}`;
-    if (key) seen.add(key, length, outName);
-    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), ...(peakDb !== null ? { peakDb } : {}) };
+    // Player check: flagged only, from what was actually written (the source rate when it was copied or kept).
+    let playerMsg = '';
+    if (settings.PlayerModel && settings.PlayerModel !== 'off') {
+      const srcRate = Number(audio.sample_rate) || null;
+      const rate = fmt.depth || copy ? srcRate : fmt === FORMATS.opus ? 48000 : settings.SampleRate; // Opus is always written at 48 kHz
+      playerMsg = playerNote(settings.PlayerModel, { format: settings.Format in FORMATS ? settings.Format : 'mp3', rate, depth: fmt.depth ? depth : null });
+      if (playerMsg) note += ` | ${playerMsg}`;
+    }
+    if (key) seen.add(key, length, outName, outDir);
+    return { status: quality && quality.low ? 'WARN' : 'OK', name: outName, note, clipped: Boolean(clipMsg), duplicate: Boolean(twin), health: Boolean(healthMsg), player: Boolean(playerMsg), ...(peakDb !== null ? { peakDb } : {}) };
   } catch (err) {
     return { status: 'FAIL', name: baseName, note: err.message };
   } finally {
     try { fs.rmSync(part, { force: true }); } catch { /* leave it */ }
+    try { fs.rmSync(metaFile, { force: true }); } catch { /* leave it */ }
     artCleanup();
   }
 }

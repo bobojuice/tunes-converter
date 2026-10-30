@@ -106,7 +106,7 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Health check:** on by default (Menu). Each file is checked for mono sound stored as stereo, a sample rate below 44.1 kHz, and damage or truncation. It only adds a note to the log, a teal flag and a count in the summary; the file is still converted and nothing is changed.
 
-**Cover art size:** only oversized embedded art (over 1000 pixels on a side or about 1 MB) is shrunk to a JPEG of at most 800 pixels; normal art is left exactly as it is. The audio is never touched. On by default.
+**Cover art size:** only oversized embedded art (over 1000 pixels on a side or about 1 MB) is shrunk to a JPEG of at most 800 pixels; normal art is left exactly as it is. The audio is never touched. Opus files keep their cover art too. On by default.
 
 **Original dates:** the converted file gets the original file's modified date, so your folders still sort by date. On by default.
 
@@ -114,7 +114,15 @@ Already have ffmpeg somewhere else? Press **Locate ffmpeg...** and choose the fo
 
 **Share presets:** under the presets in the Menu, **Export / Import presets as a file** saves your presets to a small file or adds presets from one. Imported names that already exist are skipped, and every value is checked.
 
+**Playback preview:** on by default (MENU: *Play converted tracks from the results list*). Click a converted track (OK or WARN) in the list to hear it (it keeps playing the next track in the list unless you turn that off in the MENU); a track skipped as a duplicate, or because it already exists, plays the converted copy in the output folder. The button on the row is play / pause for that track (click another row to switch); the stop button on the screen stops it. While playing: the screen shows a scrolling waveform with the live EQ behind it; the strip under it shows the whole track as a half waveform, click or drag it to skim; the platter shows the CDJ-3000 look (still cover art in a black ring with finger pockets and a bright marker circling the art, a playhead sweeping the outer ring; or, with the Settings box ticked, a spinning record) and you can also grab the platter and turn it like a jog wheel to move through the track (the track pauses while you hold it); the level meter shows the live level with a peak-hold mark. Controls on the screen: pause, stop and VOL. The tempo fader at the right of the platter goes from -10 % to +10 % by default like a CDJ; the small button under it switches the range between ±6, ±10 and ±16 % (it changes the pitch too and the platter turns faster or slower); drag it, use its arrow keys (Shift or Page Up / Page Down = 1 %), double-click it or press Home to reset to 0. It resets when the track ends or you start another one. Keys: Space pause, Left/Right 5 seconds, Up/Down volume. The track is decoded by ffmpeg into a temporary WAV so every format plays; the temporary file is deleted when you stop, start another track or quit. Only files in the output folder can be played, and playback never changes any file. It needs ffmpeg, like converting.
+
 **Watch folder:** off by default. When on, new music files that appear in the songs folder (and its sub-folders if included) after you switch it on are converted automatically, once each, after they have finished copying. Files already in the folder are not touched. It stops when you switch it off or close the app.
+
+**Folders by tags:** off by default. In the Menu, *Folders by tags* puts converted files into sub-folders built from their tags, for example Artist / Album, Album Artist / Album, Genre, or your own pattern such as `{artist}/{album}` (up to three levels; `{artist}` `{albumartist}` `{album}` `{genre}` `{year}`). A missing tag becomes "Unknown Artist", "Unknown Album" and so on. Folder names are cleaned up so nothing can be written outside the output folder. When this is on it replaces the "Include sub-folders" layout for that run.
+
+**Second copy:** off by default. Pick a format and a folder under *Second copy* to write every song twice in one run, for example an AIFF library plus an MP3 share folder. The second copy has its own duplicate checking and uses the same folder pattern. It is skipped for files that failed, and it must be a different folder from the songs folder and the main output folder. The summary counts the second-copy files separately.
+
+**Player check:** off by default. Pick your CDJ or XDJ model under *Player check* and any converted file the player may not play (a format it does not list, a sample rate or bit depth that is not in its list) gets a note in the log, a violet flag and a count in the summary. It only flags; nothing is changed and every file is still converted. The limits come from Pioneer's published specs and are approximate for some models, so check your player and its firmware. A USB stick formatted as FAT32 (or HFS+ on a Mac) is the safest choice.
 
 **Extras:** drag a folder (it becomes the songs folder) or music files onto the window; click a format pad to choose MP3, AAC (M4A), FLAC, WAV, AIFF or Opus (Opus tops out at 256 kbps); click the **SUBFOLDERS** key to include sub-folders (the folder layout is copied); **Check for updates** in the footer only contacts GitHub when you click it.
 
@@ -124,7 +132,7 @@ reason is shown; the rest of the batch continues). Amber **WARN**/**LOW** and re
 
 The controls under the display work like a CDJ: the **format pads** pick the output format, the round **knob** (click to step through) sets the bit depth for WAV/AIFF/FLAC or the bitrate for MP3/AAC/Opus, and the **option keys** switch cover art, full artist names, sub-folders and the clipping check on or off. The **QUALITY** box on the display cycles the quality check (off, warn, skip). Sample rate and minimum quality are in the **MENU**. Everything is saved for next time.
 
-The **peak meter** next to the knob shows the loudest peak of the last converted track (needs the clip check; it reads "CLIP CHECK OFF" otherwise). Flags on the strip under the waveform mark tracks with a note: red = clipping, orange = possible duplicate, pink = quality warning, teal = health flag.
+The **peak meter** next to the knob shows the loudest peak of the last converted track (needs the clip check; it reads "CLIP CHECK OFF" otherwise). Flags on the strip under the waveform mark tracks with a note: red = clipping, orange = possible duplicate, pink = quality warning, teal = health flag, violet = may not play on your chosen player.
 
 ## What it does to your files
 
@@ -226,7 +234,14 @@ the app is closed:
 | `KeepDates`    | `true`              | `false` gives converted files the current date |
 | `SaveReport`   | `false`             | `true` writes a CSV report to the output folder after each run |
 | `WatchFolder`  | `false`             | `true` converts new files that appear in the songs folder |
+| `FolderTemplate` | empty             | folder pattern such as `{artist}/{album}`; empty = off |
+| `SecondFormat` | `off`               | `off` or a format to write a second copy in           |
+| `SecondOut`    | empty               | folder for the second copy (different from `In` and `Out`) |
+| `PlayerModel`  | `off`               | `off` or a CDJ/XDJ model key such as `cdj3000`, `xdjrx3` |
 | `Presets`      | empty               | list of saved presets, each a name plus the conversion options (managed in Settings; up to 20) |
+| `PlayPreview` | `true` | `false` turns off playing converted tracks from the list |
+| `PlayNext` | `true` | `false` stops after each track |
+| `PlatterSpin` | `false` | `true` spins the cover art like a record instead of the CDJ-3000 look |
 | `OpenWhenDone` | `false`             | `true` opens the output folder after a run |
 | `Recurse`      | `false`             | `true` also converts sub-folders and mirrors them in the output |
 | `WinW`, `WinH` | `820`, `1000`      | window size, saved when you close the app |
