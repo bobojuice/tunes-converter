@@ -15,6 +15,21 @@ test('openMode: only a .app on macOS is revealed, everything else is opened', ()
   assert.equal(openMode('/home/me/Foo.app', 'linux'), 'open');
 });
 
+test('openMode: a neutral-named link to an .app is revealed too', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-openmode-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const app = path.join(root, 'Foo.app');
+  const link = path.join(root, 'Music');
+  fs.mkdirSync(app);
+  fs.symlinkSync(app, link, 'junction');
+  assert.equal(openMode(link, 'darwin'), 'reveal');
+  assert.equal(openMode(link, 'linux'), 'open');
+  assert.equal(openMode(path.join(root, 'missing'), 'darwin'), 'open');
+});
+
 test('PlayNext: default true, rejects non-boolean, not a preset key', () => {
   assert.equal(settings.defaults('/d').PlayNext, true);
   const base = settings.defaults('/d');

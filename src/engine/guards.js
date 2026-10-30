@@ -28,8 +28,16 @@ function folderToOpen(which, s) {
 }
 
 // 'open' the folder itself, or 'reveal' it in its parent: a macOS .app is a directory that openPath would launch.
+// A symlink with a neutral name that points at an .app counts too, so the resolved target is checked as well.
 function openMode(dir, platform) {
-  return platform === 'darwin' && /\.app[\\/]*$/i.test(String(dir)) ? 'reveal' : 'open';
+  if (platform !== 'darwin') return 'open';
+  const isApp = (p) => /\.app[\\/]*$/i.test(String(p));
+  if (isApp(dir)) return 'reveal';
+  try {
+    return isApp(fs.realpathSync(String(dir))) ? 'reveal' : 'open';
+  } catch {
+    return 'open';
+  }
 }
 
 // What was dropped on the window: a folder (becomes the songs folder), music files, or nothing usable.
