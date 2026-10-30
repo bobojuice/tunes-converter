@@ -216,7 +216,8 @@ async function convertOne({ file, outDir, tools, settings, allocator, signal, on
     if (!placeNoOverwrite(part, dest)) return { status: 'SKIP', name: outName, note: 'already exists' };
     if (settings.KeepDates !== false) keepDates(file, dest);
     let note = dupNote + (copy ? 'copied (no re-encode)' : fmt.lossy ? `${kbps}k` : fmt.depth ? `${depth}-bit` : 'lossless');
-    if (artFile) note += ' | cover art resized';    if (quality && quality.msg) note += ` | ${quality.msg}`;
+    if (artFile) note += ' | cover art resized';
+    if (quality && quality.msg) note += ` | ${quality.msg}`;
     if (twin) note += ` | possible duplicate of ${twin}`;
     if (clipMsg) note += ` | ${clipMsg}`;
     if (healthMsg) note += ` | ${healthMsg}`;

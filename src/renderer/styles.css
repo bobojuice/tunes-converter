@@ -172,7 +172,8 @@ h1 { margin: 0; font: 600 26px/1.1 var(--cond); letter-spacing: 0.14em; text-tra
 .knob-ticks b.on { background: #fff; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
 /* DJM-style knob: one piece of black plastic. The grip flutes, the top and the body are the same material: the depth comes from shading only */
 .knob .kgfx { position: absolute; inset: 0; width: 72px; height: 72px; overflow: visible; pointer-events: none; filter: drop-shadow(0 3px 2.5px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
-.knob:hover:not(:disabled) .kgfx { filter: drop-shadow(0 3px 2.5px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)) brightness(1.12); }.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 11px; border-radius: 1.5px; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.45), 0 0 1px rgba(0, 0, 0, 0.8); transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
+.knob:hover:not(:disabled) .kgfx { filter: drop-shadow(0 3px 2.5px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)) brightness(1.12); }
+.knob .ptr { position: absolute; left: 34.5px; top: 8px; width: 3px; height: 11px; border-radius: 1.5px; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.45), 0 0 1px rgba(0, 0, 0, 0.8); transform-origin: 1.5px 28px; transform: rotate(var(--ang, -45deg)); }
 .knob .kval { position: absolute; left: 10px; top: 38px; width: 52px; text-align: center; font: 500 10px var(--mono); color: var(--ink); }
 .knob:disabled { opacity: 0.6; }
 .klo, .khi { position: absolute; bottom: -9px; font: 10px/1 var(--mono); color: var(--muted); }

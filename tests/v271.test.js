@@ -131,3 +131,9 @@ test('Opus with TagMode clean keeps the art and the main tags', { skip }, async 
 });
 
 function titleOf(p) { const t = Object.assign({}, p.format.tags, ...p.streams.map((s) => s.tags)); return t.title || t.TITLE; }
+
+test('imageSize: skips JPEG markers without a length field before the frame header', () => {
+  const { imageSize } = require('../src/engine/art');
+  const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xd0, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x2c, 0x02, 0x58, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(imageSize(jpg), [600, 300]);
+});

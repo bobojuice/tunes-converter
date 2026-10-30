@@ -1381,7 +1381,7 @@
       tr.classList.remove('flash');
       void tr.offsetWidth;
       tr.classList.add('flash');
-      if (!actx) return;
+      if (!actx || volume <= 0) return;
       try {
         const now = actx.currentTime;
         const o = actx.createOscillator();
@@ -1389,7 +1389,7 @@
         o.type = 'sine';
         o.frequency.value = 1500;
         g.gain.setValueAtTime(0.0001, now);
-        g.gain.linearRampToValueAtTime(0.03, now + 0.003);
+        g.gain.linearRampToValueAtTime(0.03 * (volume / 100), now + 0.003);
         g.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
         o.connect(g);
         g.connect(actx.destination);
@@ -1435,7 +1435,7 @@
       e.preventDefault();
       e.stopPropagation(); // the fader keeps its own arrow keys (not volume / seek)
       if (fdOn()) {
-        if (Math.abs(t) < 0.4) t = tempo === 0 ? (t < 0 ? -0.5 : 0.5) : 0; // snaps to 0 near the centre; the next press leaves it
+        if (e.key !== 'Home' && Math.abs(t) < 0.4) t = tempo === 0 ? (t < 0 ? -0.5 : 0.5) : 0; // snaps to 0 near the centre; the next press leaves it
         setTempo(t);
       }
     });
